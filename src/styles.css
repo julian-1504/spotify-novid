@@ -1,0 +1,728 @@
+/* Kid-friendly: dark, high contrast, large artwork, big touch targets. */
+
+:root {
+  --bg: #0f1115;
+  --surface: #191c23;
+  --surface-hi: #232733;
+  --text: #f3f5f8;
+  --muted: #9aa3b2;
+  --accent: #1db954;
+  --danger: #ff6b6b;
+  --radius: 14px;
+  /* Minimum comfortable tap size for small hands. */
+  --tap: 52px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  min-height: var(--tap);
+  border-radius: var(--radius);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---------- layout ---------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* The single scrolling region, between the fixed nav and now-playing bar. */
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.content {
+  padding: 16px 16px 8px;
+}
+
+.nav {
+  display: flex;
+  justify-content: space-around;
+  background: var(--surface);
+  border-top: 1px solid #000;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav a {
+  flex: 1;
+  min-height: var(--tap);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.nav a.active {
+  color: var(--accent);
+}
+
+.nav .icon {
+  display: block;
+}
+
+/* ---------- generic ---------- */
+
+h1 {
+  font-size: 24px;
+  margin: 4px 0 16px;
+}
+
+h2 {
+  font-size: 18px;
+  margin: 24px 0 12px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+}
+
+.empty .big {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+  color: var(--muted);
+}
+
+/* The one place an icon carries Spotify's own colour: the sign-in screen. */
+.empty .big.brand {
+  color: var(--accent);
+}
+
+.error {
+  background: #2a1c1c;
+  border: 1px solid var(--danger);
+  color: #ffd9d9;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+.btn {
+  background: var(--accent);
+  color: #04140a;
+  font-weight: 700;
+  padding: 0 24px;
+  min-height: var(--tap);
+}
+
+.btn.secondary {
+  background: var(--surface-hi);
+  color: var(--text);
+}
+
+.btn.with-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/*
+ * Icons are sized by their `size` prop, but a few containers scale them
+ * instead — CSS wins over the width/height attributes on the <svg>.
+ */
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.placeholder svg {
+  width: 42%;
+  height: 42%;
+}
+
+/* The bouncing bars on the row that is playing. */
+.eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 16px;
+}
+
+.eq i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: eq-bounce 0.9s ease-in-out infinite alternate;
+}
+
+.eq i:nth-child(1) {
+  animation-duration: 0.75s;
+}
+
+.eq i:nth-child(2) {
+  animation-duration: 1.05s;
+  animation-delay: -0.35s;
+}
+
+.eq i:nth-child(3) {
+  animation-duration: 0.6s;
+  animation-delay: -0.15s;
+}
+
+@keyframes eq-bounce {
+  from {
+    transform: scaleY(0.3);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq i {
+    animation: none;
+    transform: scaleY(0.7);
+  }
+}
+
+.spinner {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ---------- grid of artwork tiles ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.tile {
+  display: block;
+  text-align: left;
+  padding: 0;
+  width: 100%;
+}
+
+.tile img,
+.tile .placeholder {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--surface-hi);
+}
+
+.tile .title {
+  margin-top: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.tile .sub {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- lists ---------- */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px;
+  text-align: left;
+  border-radius: var(--radius);
+}
+
+.row:active {
+  background: var(--surface-hi);
+}
+
+.row img,
+.row .placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  flex: none;
+  object-fit: cover;
+  background: var(--surface-hi);
+}
+
+/* The index column of a track list: a number, or the bars if it is playing. */
+.row .placeholder.index {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.row .body {
+  flex: 1;
+  min-width: 0;
+}
+
+.row .name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row .meta {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row.playing .name {
+  color: var(--accent);
+}
+
+.badge {
+  font-size: 10px;
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  padding: 0 3px;
+  color: var(--muted);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ---------- header of a detail screen ---------- */
+
+.detail-head {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.detail-head img,
+.detail-head .placeholder {
+  width: 132px;
+  height: 132px;
+  border-radius: var(--radius);
+  flex: none;
+  object-fit: cover;
+  background: var(--surface-hi);
+}
+
+.detail-head h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+/* ---------- search ---------- */
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.search-bar input {
+  flex: 1;
+  min-height: var(--tap);
+  padding: 0 16px;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--surface-hi);
+  border-radius: var(--radius);
+}
+
+.search-bar input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+  padding-bottom: 4px;
+}
+
+.chip {
+  padding: 0 16px;
+  min-height: 40px;
+  background: var(--surface);
+  color: var(--muted);
+  white-space: nowrap;
+  flex: none;
+}
+
+.chip.on {
+  background: var(--accent);
+  color: #04140a;
+  font-weight: 700;
+}
+
+/* ---------- now playing ---------- */
+
+.nowplaying {
+  background: var(--surface);
+  border-top: 1px solid #000;
+  padding: 10px 12px;
+}
+
+.np-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.np-main img,
+.np-main .placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  flex: none;
+  object-fit: cover;
+  background: var(--surface-hi);
+}
+
+.np-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.np-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-sub {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.np-buttons button {
+  min-width: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.np-buttons button:disabled {
+  opacity: 0.3;
+}
+
+.np-play {
+  background: var(--accent);
+  color: #04140a;
+  border-radius: 50%;
+  width: var(--tap);
+  height: var(--tap);
+}
+
+.np-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.np-progress input {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 24px;
+}
+
+.np-device {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 4px 0;
+  font-size: 13px;
+  color: var(--accent);
+  min-height: 34px;
+}
+
+.np-device.warn {
+  color: #ffcf6b;
+}
+
+.np-device-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.np-device .icon {
+  flex: none;
+}
+
+/* ---------- help ---------- */
+
+.status {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.status h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--surface-hi);
+}
+
+.status-icon {
+  display: flex;
+  flex: none;
+}
+
+.status-icon.ok {
+  color: var(--accent);
+}
+
+/* Red, because the help text tells a kid to look for a red cross. */
+.status-icon.bad {
+  color: var(--danger);
+}
+
+.status-label {
+  flex: 1;
+  font-weight: 600;
+}
+
+.status-value {
+  color: var(--muted);
+  text-align: right;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-value.bad {
+  color: #ffcf6b;
+}
+
+.status .btn {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.topics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.topic {
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.topic-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+  border-radius: 0;
+}
+
+.topic-icon {
+  display: flex;
+  flex: none;
+  color: var(--accent);
+}
+
+.topic-title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.topic-chevron {
+  display: flex;
+  color: var(--muted);
+  flex: none;
+}
+
+.topic-body {
+  padding: 0 16px 16px;
+}
+
+.topic-body p {
+  margin: 0 0 10px;
+}
+
+.topic-body .muted {
+  font-size: 14px;
+}
+
+.topic-body ol {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.topic-body li {
+  margin-bottom: 10px;
+  /* Roomier than prose: these get read one line at a time while doing them. */
+  line-height: 1.5;
+}
+
+.ask-parent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-hi);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 12px !important;
+  font-weight: 600;
+}
+
+.ask-parent .icon {
+  flex: none;
+  color: var(--accent);
+}
+
+/* ---------- device picker ---------- */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  z-index: 20;
+}
+
+.sheet {
+  background: var(--surface);
+  width: 100%;
+  max-height: 80%;
+  overflow-y: auto;
+  border-radius: 20px 20px 0 0;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+}
+
+.sheet h2 {
+  margin: 0 0 4px;
+}
+
+.device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 8px;
+  text-align: left;
+}
+
+.device.on {
+  color: var(--accent);
+}
+
+.device .icon {
+  flex: none;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+}
+
+.volume input {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 32px;
+}
+
+.volume .icon {
+  flex: none;
+  color: var(--muted);
+}

@@ -1,0 +1,7 @@
+# SPA fallback for static hosts (Cloudflare Pages, Netlify).
+#
+# This matters more than usual here: the OAuth callback lands on /callback,
+# which is a client-side route with no file behind it. Without this rule the
+# host returns 404 mid-sign-in and login fails in production while working
+# perfectly in dev.
+/*  /index.html  200

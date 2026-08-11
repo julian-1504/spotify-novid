@@ -1,0 +1,170 @@
+import { Link } from 'react-router-dom';
+import { Artwork, formatDate, formatDuration } from './Artwork';
+import { PlayingBars, type IconName } from './Icon';
+import { usePlayer } from '../player/PlayerProvider';
+import { play, playEpisode } from '../api/player';
+import { t } from '../strings';
+import type { Album, Artist, Episode, Playlist, Show, Track } from '../api/types';
+
+export function Tile({
+  to,
+  images,
+  title,
+  subtitle,
+  fallback,
+}: {
+  to: string;
+  images?: Album['images'];
+  title: string;
+  subtitle?: string;
+  fallback?: IconName;
+}) {
+  return (
+    <Link className="tile" to={to}>
+      <Artwork images={images} alt="" fallback={fallback} />
+      <div className="title">{title}</div>
+      {subtitle && <div className="sub">{subtitle}</div>}
+    </Link>
+  );
+}
+
+export function AlbumTile({ album }: { album: Album }) {
+  return (
+    <Tile
+      to={`/album/${album.id}`}
+      images={album.images}
+      title={album.name}
+      subtitle={album.artists.map((a) => a.name).join(', ')}
+      fallback="album"
+    />
+  );
+}
+
+export function ArtistTile({ artist }: { artist: Artist }) {
+  return (
+    <Tile
+      to={`/artist/${artist.id}`}
+      images={artist.images}
+      title={artist.name}
+      fallback="artist"
+    />
+  );
+}
+
+export function PlaylistTile({ playlist }: { playlist: Playlist }) {
+  return (
+    <Tile
+      to={`/playlist/${playlist.id}`}
+      images={playlist.images}
+      title={playlist.name}
+      subtitle={t.detail.songs(playlist.tracks?.total ?? 0)}
+      fallback="playlist"
+    />
+  );
+}
+
+export function ShowTile({ show }: { show: Show }) {
+  return (
+    <Tile
+      to={`/show/${show.id}`}
+      images={show.images}
+      title={show.name}
+      subtitle={show.publisher}
+      fallback="podcast"
+    />
+  );
+}
+
+/** A tappable song row. Tapping plays it in the context it belongs to. */
+export function TrackRow({
+  track,
+  index,
+  contextUri,
+  showArtwork = false,
+}: {
+  track: Track;
+  index?: number;
+  contextUri?: string;
+  showArtwork?: boolean;
+}) {
+  const { state, command, selectedDevice } = usePlayer();
+  const isCurrent = state?.item?.id === track.id;
+  const playable = track.is_playable !== false && Boolean(selectedDevice);
+
+  const onPlay = () =>
+    void command((deviceId) =>
+      contextUri && index !== undefined
+        ? play({ deviceId, contextUri, offsetPosition: index })
+        : play({ deviceId, uris: [track.uri] }),
+    );
+
+  return (
+    <button
+      className={`row ${isCurrent ? 'playing' : ''}`}
+      onClick={onPlay}
+      disabled={!playable}
+    >
+      {showArtwork ? (
+        <Artwork images={track.album?.images} alt="" fallback="note" />
+      ) : (
+        <span className="placeholder index" aria-hidden="true">
+          {isCurrent ? <PlayingBars /> : (index ?? 0) + 1}
+        </span>
+      )}
+      <span className="body">
+        <span className="name">
+          {track.name}
+          {track.explicit && <span className="badge">E</span>}
+        </span>
+        <span className="meta">
+          {track.artists.map((a) => a.name).join(', ')} ·{' '}
+          {formatDuration(track.duration_ms)}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/**
+ * A podcast episode row. Episodes need their own play path because the API
+ * rejects episode URIs as a playback *context*.
+ */
+export function EpisodeRow({
+  episode,
+  showUri,
+}: {
+  episode: Episode;
+  showUri?: string;
+}) {
+  const { state, command, selectedDevice } = usePlayer();
+  const isCurrent = state?.item?.id === episode.id;
+  const resume = episode.resume_point;
+  const resumeMs =
+    resume && !resume.fully_played && resume.resume_position_ms > 0
+      ? resume.resume_position_ms
+      : undefined;
+
+  const onPlay = () =>
+    void command((deviceId) =>
+      playEpisode(episode.uri, showUri, deviceId, resumeMs),
+    );
+
+  return (
+    <button
+      className={`row ${isCurrent ? 'playing' : ''}`}
+      onClick={onPlay}
+      disabled={episode.is_playable === false || !selectedDevice}
+    >
+      <Artwork images={episode.images} alt="" fallback="podcast" />
+      <span className="body">
+        <span className="name">{episode.name}</span>
+        <span className="meta">
+          {formatDate(episode.release_date)} ·{' '}
+          {formatDuration(episode.duration_ms)}
+          {resume?.fully_played && ` · ${t.episode.played}`}
+          {resumeMs && ` · ${t.episode.resumeAt(formatDuration(resumeMs))}`}
+        </span>
+      </span>
+    </button>
+  );
+}
