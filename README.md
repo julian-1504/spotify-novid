@@ -114,6 +114,19 @@ protect.
 npm run build            # output in dist/
 ```
 
+**Set `VITE_SPOTIFY_CLIENT_ID` in the host's build environment**, not just locally.
+`.env` is deliberately not in the repo, so a CI build without that variable produces
+a bundle with an empty client ID and the app fails at the first login attempt with
+*"VITE_SPOTIFY_CLIENT_ID is not set"* — a failure that does not reproduce locally,
+where `.env` is present.
+
+The client ID ends up in the published JavaScript, because Vite inlines `VITE_`-prefixed
+variables at build time. That is expected and not a leak: PKCE public clients have no
+client secret, and the ID is already visible in the authorize URL during every sign-in.
+It is not worth rotating if you spot it in the bundle. What actually protects the app is
+the redirect URI allowlist in the dashboard — a client ID used with an unregistered
+redirect URI is rejected outright.
+
 `public/_redirects` already configures the SPA fallback for Cloudflare Pages and
 Netlify. It is not optional: `/callback` is a client-side route with no file
 behind it, so without the fallback the host 404s in the middle of signing in —
