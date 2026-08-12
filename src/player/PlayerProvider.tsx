@@ -130,7 +130,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   });
 
   const partitioned = devicesQuery.data ?? NO_DEVICES;
+  /** The boxes, which is what every consumer of this means. Never the phone. */
   const devices = partitioned.allowed;
+
+  /**
+   * Boxes plus this phone — what a stored choice is resolved against. Only the
+   * two places below use it: the phone is selectable, so it has to be findable,
+   * but it must not swell the box count or show up as a row of its own.
+   */
+  const resolvable = useMemo(
+    () => (partitioned.self ? [...devices, partitioned.self] : devices),
+    [devices, partitioned.self],
+  );
 
   /**
    * What the remembered choice points at right now. The self sentinel is stored
@@ -147,12 +158,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // An explicit choice is never second-guessed. If the box is not in the
       // list right now it is unavailable, not replaced — silently retargeting
       // to another speaker is how audio ends up in the wrong room.
-      return rememberedId ? devices.find((d) => d.id === rememberedId) : undefined;
+      return rememberedId ? resolvable.find((d) => d.id === rememberedId) : undefined;
     }
     // Nothing chosen yet, so follow whatever Spotify says is active — but only
     // if we are allowed to talk to it.
-    return devices.find((d) => d.is_active);
-  }, [devices, remembered, rememberedId]);
+    return resolvable.find((d) => d.is_active);
+  }, [resolvable, remembered, rememberedId]);
 
   /**
    * The kid chose this phone. Deliberately based on the stored choice rather
@@ -183,7 +194,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // seconds into every launch, which is what the sentinel exists to prevent.
     if (isSelfSentinel(remembered.id)) return;
 
-    const present = devices.some((d) => d.id === remembered.id);
+    const present = resolvable.some((d) => d.id === remembered.id);
     const { streak, forget } = trackAbsence(missStreak.current, present);
     missStreak.current = streak;
 
@@ -192,7 +203,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setRemembered(null);
     }
   }, [
-    devices,
+    resolvable,
     remembered,
     devicesQuery.isLoading,
     devicesQuery.isSuccess,

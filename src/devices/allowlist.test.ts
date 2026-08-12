@@ -107,8 +107,14 @@ describe('the SDK device exception', () => {
     );
   });
 
-  it('carries the exception through partitionDevices', () => {
-    const { allowed, hidden } = partitionDevices(
+  /**
+   * The phone is allowed but is not a box, so it comes back in its own field.
+   * Leaving it in `allowed` drew it twice in the picker — once as its own row,
+   * once as the ordinary device named by DEVICE_NAME — and made the
+   * now-playing bar count it as a box.
+   */
+  it('returns this phone separately, not among the boxes', () => {
+    const { allowed, self, hidden } = partitionDevices(
       [
         device({ id: 'a', name: 'Kitchen', type: 'speaker' }),
         device({ id: SELF, name: 'Musik-App', type: 'Computer' }),
@@ -117,8 +123,35 @@ describe('the SDK device exception', () => {
       SELF,
     );
 
-    expect(allowed.map((d) => d.name)).toEqual(['Kitchen', 'Musik-App']);
+    expect(allowed.map((d) => d.name)).toEqual(['Kitchen']);
+    expect(self?.name).toBe('Musik-App');
     expect(hidden.map((h) => h.device.name)).toEqual(['Living room TV']);
+  });
+
+  // What makes "Keine Box gefunden" reachable again: a phone on its own is not
+  // a box being available.
+  it('reports no boxes when the phone is the only device', () => {
+    const { allowed, self } = partitionDevices(
+      [device({ id: SELF, name: 'Musik-App', type: 'Computer' })],
+      SELF,
+    );
+
+    expect(allowed).toEqual([]);
+    expect(self?.name).toBe('Musik-App');
+  });
+
+  it('has no self device when this phone is not a player', () => {
+    const { allowed, self, hidden } = partitionDevices([
+      device({ id: 'a', name: 'Kitchen', type: 'speaker' }),
+      device({ id: SELF, name: 'Musik-App', type: 'Computer' }),
+    ]);
+
+    expect(self).toBeUndefined();
+    expect(allowed.map((d) => d.name)).toEqual(['Kitchen']);
+    // Without the exception it is just another computer, and stays refused.
+    expect(hidden.map((h) => [h.device.name, h.reason])).toEqual([
+      ['Musik-App', 'blocked-type'],
+    ]);
   });
 });
 

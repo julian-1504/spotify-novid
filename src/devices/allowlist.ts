@@ -90,7 +90,20 @@ export function explainRejection(reason: RejectionReason): string {
 }
 
 export interface PartitionedDevices {
+  /** The boxes. Never this phone — see `self`. */
   allowed: Device[];
+  /**
+   * This phone, once the Web Playback SDK has registered it as a Connect
+   * device. Allowed, but kept out of `allowed` because it is not a box, and
+   * every consumer of that list means boxes.
+   *
+   * Splitting it out here rather than filtering at each call site is what makes
+   * two bugs impossible by construction: the picker drew the phone twice (its
+   * own row plus the ordinary device row named by DEVICE_NAME), and the
+   * now-playing bar counted it as a box, so "Keine Box gefunden" could never
+   * appear again once the SDK had booted.
+   */
+  self?: Device;
   /** Devices Spotify reported that this app refuses to play to, and why. */
   hidden: { device: Device; reason: RejectionReason }[];
 }
@@ -106,11 +119,17 @@ export function partitionDevices(
 ): PartitionedDevices {
   const allowed: Device[] = [];
   const hidden: { device: Device; reason: RejectionReason }[] = [];
+  let self: Device | undefined;
 
   for (const device of devices) {
     const reason = rejectionReason(device, selfDeviceId);
-    if (reason === null) allowed.push(device);
-    else hidden.push({ device, reason });
+    if (reason !== null) {
+      hidden.push({ device, reason });
+    } else if (selfDeviceId && device.id === selfDeviceId) {
+      self = device;
+    } else {
+      allowed.push(device);
+    }
   }
-  return { allowed, hidden };
+  return { allowed, self, hidden };
 }
