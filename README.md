@@ -12,8 +12,13 @@ stream itself — it browses the catalogue and tells a speaker what to play.
 Three independent layers:
 
 1. **The app renders no video.** There is no `<video>`, no `<iframe>`, no
-   embed. `npm run check:novideo` scans the built bundle and fails if one ever
-   appears.
+   embed. `npm run check:novideo` scans both `src/` and the built bundle, and
+   fails if one ever appears. Scanning source is the layer that matters: JSX
+   compiles to `jsx("iframe", …)`, so a bundle-only scan has to know exactly
+   what the compiler emits, whereas an `<iframe>` in a `.tsx` file is plain text
+   no bundler can rename. `scripts/no-video-patterns.test.mjs` asserts the
+   patterns still catch every form, so the check cannot quietly rot into a
+   no-op.
 2. **Playback targets are restricted to audio-only devices** by the build-time
    allowlist in `src/config.ts`. A TV, a video Chromecast, or a games console is
    never offered as a target. The filter is allowlist-first, so an unrecognised
@@ -142,8 +147,8 @@ open the site in Chrome and use **Add to Home screen**.
 **manual only** — Actions tab → *Deploy to Cloudflare Pages* → **Run workflow**,
 then pick `preview` or `production`. Nothing deploys on push or merge.
 
-The workflow lints, tests, builds and runs `check:novideo` against `dist/` before
-uploading, so a deploy cannot ship a bundle containing a video surface. It uses
+The workflow lints, tests, builds and runs `check:novideo` before uploading, so a
+deploy cannot ship a bundle containing a video surface. It uses
 Direct Upload, meaning the bundle is built in Actions and pushed as static
 assets; Cloudflare never builds, and since the app has no Pages Functions it
 consumes no Workers request quota.
@@ -305,7 +310,7 @@ entering the Spotify password.
 | `npm run dev` | Dev server on `127.0.0.1:5173` |
 | `npm run build` | Production build into `dist/` |
 | `npm test` | Unit tests (device allowlist) |
-| `npm run check:novideo` | Fails if any video surface is in `dist/` |
+| `npm run check:novideo` | Fails if any video surface is in `src/` or `dist/` |
 | `npm run spike -- <client-id>` | Step-0 account/device/podcast checks |
 | `node scripts/make-icons.mjs` | Regenerate PWA launcher icons |
 
