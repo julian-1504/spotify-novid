@@ -1,4 +1,16 @@
-/** Kicking off and completing the OAuth redirect dance. */
+/**
+ * Kicking off and completing the OAuth redirect dance.
+ *
+ * `show_dialog=true` is load-bearing for signing out. Clearing our own tokens
+ * does not touch Spotify's session cookie on accounts.spotify.com, so without it
+ * the authorize redirect sails straight through and hands back the very same
+ * account — making "abmelden, dann mit einem anderen Konto anmelden"
+ * impossible. With it, Spotify always shows its approval screen, which carries
+ * the link to use a different account.
+ *
+ * The cost is one extra tap on the twice-yearly forced re-authorization. Worth
+ * it, and a grown-up is doing that one anyway.
+ */
 
 import { CLIENT_ID, redirectUri, SCOPES } from '../config';
 import { t } from '../strings';
@@ -31,6 +43,7 @@ export async function beginLogin(): Promise<void> {
     code_challenge: await challengeFor(verifier),
     state,
     scope: SCOPES.join(' '),
+    show_dialog: 'true',
   });
 
   window.location.assign(`${AUTHORIZE_ENDPOINT}?${params}`);

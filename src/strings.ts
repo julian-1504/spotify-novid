@@ -22,6 +22,7 @@ export const t = {
     search: 'Suchen',
     library: 'Deine Sachen',
     help: 'Hilfe',
+    logout: 'Abmelden',
   },
 
   login: {
@@ -39,6 +40,20 @@ export const t = {
       'Die Anmeldung konnte nicht geprüft werden. Bitte noch einmal versuchen.',
     retry: 'Nochmal versuchen',
     notConfiguredTitle: 'Noch nicht eingerichtet.',
+  },
+
+  /**
+   * Signing out is the one thing in the app a kid can do that stops the music
+   * for everyone, so the screen says plainly what happens next instead of just
+   * asking "bist du sicher?".
+   */
+  logout: {
+    title: 'Wirklich abmelden?',
+    intro:
+      'Dann ist hier erst mal nichts mehr zu sehen, bis sich jemand wieder mit Spotify anmeldet.',
+    hint: 'So kann man auch ein anderes Spotify-Konto benutzen.',
+    confirm: 'Ja, abmelden',
+    cancel: 'Nein, zurück',
   },
 
   search: {

@@ -11,6 +11,7 @@ import { Callback } from './screens/Callback';
 import { Help } from './screens/Help';
 import { Library } from './screens/Library';
 import { Login } from './screens/Login';
+import { Logout } from './screens/Logout';
 import { Playlist } from './screens/Playlist';
 import { Search } from './screens/Search';
 import { Show } from './screens/Show';
@@ -60,6 +61,7 @@ export function App() {
             <Route path="/playlist/:id" element={<Playlist />} />
             <Route path="/show/:id" element={<Show />} />
             <Route path="/hilfe" element={<Help />} />
+            <Route path="/abmelden" element={<Logout />} />
             <Route path="*" element={<Search />} />
           </Routes>
         </main>
@@ -78,6 +80,10 @@ export function App() {
           <NavLink to="/hilfe">
             <Icon name="help" size={25} />
             {t.nav.help}
+          </NavLink>
+          <NavLink to="/abmelden">
+            <Icon name="logout" size={25} />
+            {t.nav.logout}
           </NavLink>
         </nav>
       </div>

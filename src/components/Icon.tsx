@@ -236,6 +236,16 @@ const GLYPHS = {
     </>
   ),
 
+  // A door with an arrow leaving it. The arrow points out of the doorway, which
+  // is what distinguishes "abmelden" from a login icon at nav-bar size.
+  logout: (
+    <>
+      <path d="M14.5 3.5H6.2A1.7 1.7 0 0 0 4.5 5.2v13.6a1.7 1.7 0 0 0 1.7 1.7h8.3" />
+      <path d="m16.6 8.4 3.6 3.6-3.6 3.6" />
+      <path d="M10.2 12h10" />
+    </>
+  ),
+
   // The Spotify wordmark's circle, used only where the app names Spotify itself.
   spotify: (
     <path

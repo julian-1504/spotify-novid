@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AuthExpiredError,
   clearStored,
@@ -21,6 +22,7 @@ type AuthStatus = 'checking' | 'signed-in' | 'signed-out' | 'expired';
 interface AuthValue {
   status: AuthStatus;
   signIn: () => Promise<void>;
+  /** Ends the session on purpose, so a different account can sign in. */
   signOut: () => void;
   /** Called by the API client when a grant turns out to be dead. */
   markExpired: () => void;
@@ -30,6 +32,7 @@ const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('checking');
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -67,15 +70,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const signOut = useCallback(() => {
-    clearStored();
-    setStatus('signed-out');
-  }, []);
+  /**
+   * Tearing down a session means dropping the cache too. Cached library and
+   * playlist data is scoped to whoever was signed in, so leaving it in place
+   * would show the previous account's things for a beat after a new one signs
+   * in. The remembered speaker (`novid.device`) is deliberately kept: it is the
+   * same household either way, and PlayerProvider forgets it by itself if the
+   * next account cannot see it.
+   */
+  const endSession = useCallback(
+    (next: AuthStatus) => {
+      clearStored();
+      queryClient.clear();
+      setStatus(next);
+    },
+    [queryClient],
+  );
 
-  const markExpired = useCallback(() => {
-    clearStored();
-    setStatus('expired');
-  }, []);
+  const signOut = useCallback(() => endSession('signed-out'), [endSession]);
+
+  const markExpired = useCallback(() => endSession('expired'), [endSession]);
 
   const value = useMemo<AuthValue>(
     () => ({ status, signIn: beginLogin, signOut, markExpired }),
