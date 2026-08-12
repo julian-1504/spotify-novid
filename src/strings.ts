@@ -22,7 +22,7 @@ export const t = {
     search: 'Suchen',
     library: 'Deine Sachen',
     help: 'Hilfe',
-    logout: 'Abmelden',
+    account: 'Konto',
   },
 
   login: {
@@ -43,16 +43,29 @@ export const t = {
   },
 
   /**
-   * Signing out is the one thing in the app a kid can do that stops the music
-   * for everyone, so the screen says plainly what happens next instead of just
-   * asking "bist du sicher?".
+   * The account switcher. Several people can be signed in at once and tapping a
+   * name swaps the whole app over, so the wording is about *who is listening*
+   * rather than about logins — that is the way a kid thinks about it.
+   *
+   * Removing is the one destructive action here and it is the only one that
+   * asks first: it is what could leave somebody needing a password they do not
+   * have.
    */
-  logout: {
-    title: 'Wirklich abmelden?',
-    intro:
-      'Dann ist hier erst mal nichts mehr zu sehen, bis sich jemand wieder mit Spotify anmeldet.',
-    hint: 'So kann man auch ein anderes Spotify-Konto benutzen.',
-    confirm: 'Ja, abmelden',
+  account: {
+    title: 'Wer hört gerade?',
+    intro: 'Tippe auf einen Namen, um zu wechseln.',
+    active: 'gerade dran',
+    unnamed: 'Spotify-Konto',
+    needsReauth: 'muss neu angemeldet werden',
+    reauth: 'Neu anmelden',
+    add: 'Konto hinzufügen',
+    addHint:
+      'Dafür braucht ihr das Spotify-Passwort vom neuen Konto. Das macht am besten ein Erwachsener.',
+    remove: 'Konto entfernen',
+    removeTitle: (name: string) => `„${name}“ wirklich entfernen?`,
+    removeIntro:
+      'Dieses Konto verschwindet dann aus der Liste. Zum Zurückholen ist wieder das Spotify-Passwort nötig.',
+    removeConfirm: 'Ja, entfernen',
     cancel: 'Nein, zurück',
   },
 

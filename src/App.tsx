@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
+import { Artwork } from './components/Artwork';
 import { setAuthExpiredHandler } from './api/client';
 import { PlayerProvider } from './player/PlayerProvider';
 import { NowPlayingBar } from './components/NowPlayingBar';
@@ -11,14 +12,14 @@ import { Callback } from './screens/Callback';
 import { Help } from './screens/Help';
 import { Library } from './screens/Library';
 import { Login } from './screens/Login';
-import { Logout } from './screens/Logout';
+import { Account } from './screens/Account';
 import { Playlist } from './screens/Playlist';
 import { Search } from './screens/Search';
 import { Show } from './screens/Show';
 import { t } from './strings';
 
 export function App() {
-  const { status, markExpired } = useAuth();
+  const { status, markExpired, activeAccount } = useAuth();
 
   // Let the API client tear down the session when a grant turns out to be dead.
   useEffect(() => setAuthExpiredHandler(markExpired), [markExpired]);
@@ -61,7 +62,7 @@ export function App() {
             <Route path="/playlist/:id" element={<Playlist />} />
             <Route path="/show/:id" element={<Show />} />
             <Route path="/hilfe" element={<Help />} />
-            <Route path="/abmelden" element={<Logout />} />
+            <Route path="/konto" element={<Account />} />
             <Route path="*" element={<Search />} />
           </Routes>
         </main>
@@ -81,9 +82,16 @@ export function App() {
             <Icon name="help" size={25} />
             {t.nav.help}
           </NavLink>
-          <NavLink to="/abmelden">
-            <Icon name="logout" size={25} />
-            {t.nav.logout}
+          <NavLink to="/konto">
+            {/* The active account's avatar, so who is listening is readable
+                from the nav bar without opening anything. */}
+            <Artwork
+              images={activeAccount?.images}
+              alt=""
+              fallback="person"
+              className="nav-avatar"
+            />
+            {t.nav.account}
           </NavLink>
         </nav>
       </div>

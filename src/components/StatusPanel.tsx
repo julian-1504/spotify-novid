@@ -14,7 +14,7 @@ import { t } from '../strings';
  */
 export function StatusPanel() {
   const online = useOnline();
-  const { status } = useAuth();
+  const { status, activeAccount } = useAuth();
   const { devices, hiddenDevices, selectedDevice, refresh } = usePlayer();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -44,9 +44,11 @@ export function StatusPanel() {
       <StatusRow
         label={t.help.statusSignedIn}
         ok={status === 'signed-in'}
+        // With several accounts signed in, "ja" is not the useful answer —
+        // which one is driving the app is.
         value={
           status === 'signed-in'
-            ? t.help.statusSignedInOk
+            ? (activeAccount?.name ?? t.help.statusSignedInOk)
             : t.help.statusSignedInBad
         }
       />

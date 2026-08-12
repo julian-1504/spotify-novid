@@ -1,21 +1,21 @@
 /**
  * Kicking off and completing the OAuth redirect dance.
  *
- * `show_dialog=true` is load-bearing for signing out. Clearing our own tokens
- * does not touch Spotify's session cookie on accounts.spotify.com, so without it
- * the authorize redirect sails straight through and hands back the very same
- * account — making "abmelden, dann mit einem anderen Konto anmelden"
- * impossible. With it, Spotify always shows its approval screen, which carries
- * the link to use a different account.
+ * `show_dialog=true` is load-bearing for adding a second account. Spotify keeps
+ * its own session cookie on accounts.spotify.com, so without it the authorize
+ * redirect sails straight through and hands back the account already signed in
+ * there — you could never add anybody else. With it, Spotify always shows its
+ * approval screen, which carries the link to sign in as someone different.
  *
  * The cost is one extra tap on the twice-yearly forced re-authorization. Worth
  * it, and a grown-up is doing that one anyway.
  */
 
 import { CLIENT_ID, redirectUri, SCOPES } from '../config';
+import { fetchProfile, profileName } from '../api/me';
 import { t } from '../strings';
 import { challengeFor, randomVerifier } from './pkce';
-import { exchangeCode } from './tokens';
+import { exchangeCode, storeNewGrant } from './tokens';
 
 const AUTHORIZE_ENDPOINT = 'https://accounts.spotify.com/authorize';
 // sessionStorage, not localStorage: this is single-use and must not outlive the
@@ -75,5 +75,23 @@ export async function completeLogin(search: string): Promise<void> {
     throw new Error(t.login.unverified);
   }
 
-  await exchangeCode(code, verifier, redirectUri());
+  const tokens = await exchangeCode(code, verifier, redirectUri());
+
+  // Ask Spotify who just signed in, so the tokens can be filed under that
+  // account rather than replacing whoever was there before. A failure here must
+  // not cost us the tokens — the account goes in unnamed and the next launch
+  // backfills it.
+  let id = '';
+  let name = '';
+  let images;
+  try {
+    const profile = await fetchProfile(tokens.access_token);
+    id = profile.id;
+    name = profileName(profile);
+    images = profile.images;
+  } catch {
+    // Offline mid-callback, or /me refused. Keep the grant either way.
+  }
+
+  storeNewGrant({ id, name, images, tokens });
 }

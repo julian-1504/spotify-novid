@@ -236,6 +236,8 @@ const GLYPHS = {
     </>
   ),
 
+  plus: <path d="M12 5v14M5 12h14" strokeWidth={2.1} />,
+
   // A door with an arrow leaving it. The arrow points out of the doorway, which
   // is what distinguishes "abmelden" from a login icon at nav-bar size.
   logout: (

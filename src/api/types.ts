@@ -117,6 +117,20 @@ export interface PlaybackState {
   currently_playing_type: 'track' | 'episode' | 'ad' | 'unknown';
 }
 
+/**
+ * The signed-in user, as far as this app cares.
+ *
+ * Only the fields that need no extra scope: `product`, `country` and `email`
+ * are gated behind user-read-private / user-read-email, and adding either scope
+ * would mean every stored grant carried a different scope set than new ones.
+ * `display_name` can be null on accounts that never set one.
+ */
+export interface UserProfile {
+  id: string;
+  display_name: string | null;
+  images?: Image[];
+}
+
 export interface SearchResults {
   tracks?: Paged<Track>;
   albums?: Paged<Album>;

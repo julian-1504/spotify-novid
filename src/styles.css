@@ -183,6 +183,112 @@ h2 {
   margin-top: 24px;
 }
 
+/* ---------- accounts ---------- */
+
+.accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding-right: 8px;
+}
+
+.account.active {
+  outline: 2px solid var(--accent);
+}
+
+/* Signed in but the grant is dead — still listed, just clearly not usable. */
+.account.stale .account-name,
+.account.stale .avatar {
+  opacity: 0.55;
+}
+
+.account-pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  text-align: left;
+  min-width: 0;
+}
+
+.account-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-state {
+  flex: 1;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-tick {
+  display: flex;
+  color: var(--accent);
+}
+
+.account-remove {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  color: var(--muted);
+}
+
+.account .btn {
+  padding: 0 14px;
+  min-height: 40px;
+}
+
+/* Round, because every other avatar a kid sees is round. */
+.avatar,
+.nav-avatar {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+
+.nav-avatar {
+  width: 25px;
+  height: 25px;
+}
+
+/* The placeholder branch of <Artwork> is a div, so it needs the box too. */
+.placeholder.avatar {
+  background: var(--surface-hi);
+}
+
+.placeholder.nav-avatar {
+  background: none;
+}
+
+.small {
+  font-size: 13px;
+}
+
 /*
  * Icons are sized by their `size` prop, but a few containers scale them
  * instead — CSS wins over the width/height attributes on the <svg>.
