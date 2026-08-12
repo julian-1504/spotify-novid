@@ -1,6 +1,10 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getPlaylist, getPlaylistItems } from '../api/catalog';
+import {
+  getPlaylist,
+  getPlaylistItems,
+  playlistItemCount,
+} from '../api/catalog';
 import { Artwork } from '../components/Artwork';
 import { Icon } from '../components/Icon';
 import { EpisodeRow, TrackRow } from '../components/Rows';
@@ -25,6 +29,10 @@ export function Playlist() {
   if (playlist.isLoading) return <div className="spinner">{t.app.loading}</div>;
   if (!playlist.data) return null;
 
+  // The page of items is the one count that is always right here, so it wins
+  // over anything the playlist object did or did not say about its own length.
+  const count = items.data?.total ?? playlistItemCount(playlist.data);
+
   return (
     <div className="content">
       <div className="detail-head">
@@ -34,7 +42,7 @@ export function Playlist() {
           <p className="muted">
             {playlist.data.owner?.display_name ?? ''}
             <br />
-            {t.detail.songs(playlist.data.tracks?.total ?? 0)}
+            {count === undefined ? '' : t.detail.songs(count)}
           </p>
           <button
             className="btn with-icon"

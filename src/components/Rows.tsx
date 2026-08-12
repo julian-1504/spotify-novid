@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Artwork, formatDate, formatDuration } from './Artwork';
 import { PlayingBars, type IconName } from './Icon';
 import { usePlayer } from '../player/PlayerProvider';
+import { fetchPlaylistItemCount, playlistItemCount } from '../api/catalog';
 import { play, playEpisode } from '../api/player';
 import { t } from '../strings';
 import type { Album, Artist, Episode, Playlist, Show, Track } from '../api/types';
@@ -51,13 +53,30 @@ export function ArtistTile({ artist }: { artist: Artist }) {
   );
 }
 
+/**
+ * Playlist summaries from `/me/playlists` and from search carry no count of
+ * their own, so the tile fetches one. It is a single small request per playlist
+ * the query layer then caches, and only for the summaries that arrived without
+ * a count — a playlist whose count is already known costs nothing extra.
+ *
+ * Until an answer is in, the tile says nothing about its length rather than
+ * guessing at zero.
+ */
 export function PlaylistTile({ playlist }: { playlist: Playlist }) {
+  const stated = playlistItemCount(playlist);
+  const lookedUp = useQuery({
+    queryKey: ['playlist', playlist.id, 'count'],
+    queryFn: () => fetchPlaylistItemCount(playlist.id),
+    enabled: stated === undefined,
+  });
+  const count = stated ?? lookedUp.data;
+
   return (
     <Tile
       to={`/playlist/${playlist.id}`}
       images={playlist.images}
       title={playlist.name}
-      subtitle={t.detail.songs(playlist.tracks?.total ?? 0)}
+      subtitle={count === undefined ? undefined : t.detail.songs(count)}
       fallback="playlist"
     />
   );
