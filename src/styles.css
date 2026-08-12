@@ -408,6 +408,11 @@ h2 {
   flex-direction: column;
 }
 
+/* Watched by EndOfList to load the next page. Takes up no room of its own. */
+.list-end {
+  height: 1px;
+}
+
 .row {
   display: flex;
   align-items: center;

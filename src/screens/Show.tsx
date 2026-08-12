@@ -2,7 +2,9 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getShow, getShowEpisodes } from '../api/catalog';
 import { Artwork } from '../components/Artwork';
+import { EndOfList } from '../components/EndOfList';
 import { EpisodeRow } from '../components/Rows';
+import { usePagedList } from '../hooks/usePagedList';
 import { t } from '../strings';
 
 /**
@@ -13,10 +15,12 @@ export function Show() {
   const { id = '' } = useParams();
 
   const show = useQuery({ queryKey: ['show', id], queryFn: () => getShow(id) });
-  const episodes = useQuery({
-    queryKey: ['show', id, 'episodes'],
-    queryFn: () => getShowEpisodes(id),
-  });
+  // Long-running shows are where the 50-per-page ceiling bites hardest: the
+  // first page is the newest episodes, and everything older simply was not
+  // there before.
+  const episodes = usePagedList(['show', id, 'episodes'], (offset) =>
+    getShowEpisodes(id, offset),
+  );
 
   if (show.isLoading) return <div className="spinner">{t.app.loading}</div>;
   if (!show.data) return null;
@@ -38,10 +42,24 @@ export function Show() {
       <h2>{t.detail.episodes}</h2>
       {episodes.isLoading && <div className="spinner">{t.app.loading}</div>}
       <div className="rows">
-        {episodes.data?.items.filter(Boolean).map((episode) => (
-          <EpisodeRow key={episode.id} episode={episode} showUri={show.data.uri} />
-        ))}
+        {episodes.entries
+          .filter(({ item }) => Boolean(item))
+          .map(({ item, index }) => (
+            <EpisodeRow
+              key={`${item.id}-${index}`}
+              episode={item}
+              showUri={show.data.uri}
+            />
+          ))}
       </div>
+
+      {episodes.isFetchingNextPage && (
+        <div className="spinner">{t.app.loading}</div>
+      )}
+      <EndOfList
+        onReach={episodes.fetchNextPage}
+        active={episodes.hasNextPage && !episodes.isFetchingNextPage}
+      />
     </div>
   );
 }

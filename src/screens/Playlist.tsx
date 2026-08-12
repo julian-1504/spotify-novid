@@ -6,8 +6,10 @@ import {
   playlistItemCount,
 } from '../api/catalog';
 import { Artwork } from '../components/Artwork';
+import { EndOfList } from '../components/EndOfList';
 import { Icon } from '../components/Icon';
 import { EpisodeRow, TrackRow } from '../components/Rows';
+import { usePagedList } from '../hooks/usePagedList';
 import { usePlayer } from '../player/PlayerProvider';
 import { play } from '../api/player';
 import { t } from '../strings';
@@ -20,18 +22,19 @@ export function Playlist() {
     queryKey: ['playlist', id],
     queryFn: () => getPlaylist(id),
   });
-  // Note the endpoint: /items, not the removed /tracks.
-  const items = useQuery({
-    queryKey: ['playlist', id, 'items'],
-    queryFn: () => getPlaylistItems(id),
-  });
+  // Note the endpoint: /items, not the removed /tracks. Paged rather than
+  // fetched once, because a kid should be able to start from any song in the
+  // playlist, not only from one of the first fifty.
+  const items = usePagedList(['playlist', id, 'items'], (offset) =>
+    getPlaylistItems(id, offset),
+  );
 
   if (playlist.isLoading) return <div className="spinner">{t.app.loading}</div>;
   if (!playlist.data) return null;
 
   // The page of items is the one count that is always right here, so it wins
   // over anything the playlist object did or did not say about its own length.
-  const count = items.data?.total ?? playlistItemCount(playlist.data);
+  const count = items.total ?? playlistItemCount(playlist.data);
 
   return (
     <div className="content">
@@ -60,22 +63,32 @@ export function Playlist() {
       </div>
 
       <div className="rows">
-        {items.data?.items.map((item, i) => {
+        {items.entries.map(({ item, index }) => {
           const entry = item.track;
           if (!entry) return null;
+          // `index` is the position in the whole playlist, not in the page it
+          // arrived on — it is what tells Spotify which song to start at.
           return entry.type === 'episode' ? (
-            <EpisodeRow key={`${entry.id}-${i}`} episode={entry} />
+            <EpisodeRow key={`${entry.id}-${index}`} episode={entry} />
           ) : (
             <TrackRow
-              key={`${entry.id}-${i}`}
+              key={`${entry.id}-${index}`}
               track={entry}
-              index={i}
+              index={index}
               contextUri={playlist.data.uri}
               showArtwork
             />
           );
         })}
       </div>
+
+      {items.isFetchingNextPage && (
+        <div className="spinner">{t.app.loading}</div>
+      )}
+      <EndOfList
+        onReach={items.fetchNextPage}
+        active={items.hasNextPage && !items.isFetchingNextPage}
+      />
     </div>
   );
 }
