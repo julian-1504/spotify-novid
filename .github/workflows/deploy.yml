@@ -36,6 +36,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Resolved first, and printed, because the branch name is the only thing
+      # deciding whether this lands on the live site. An earlier inline
+      # expression fell back to the current ref for previews, which on a
+      # single-branch repo meant every "preview" was a production deploy — with
+      # nothing in the log to say so. Running it before the build also means a
+      # production request from the wrong branch fails in seconds rather than
+      # after a full lint/test/build.
+      #
+      # TARGET/REF_NAME arrive via env rather than being interpolated into the
+      # script, since branch names may carry shell metacharacters.
+      - id: target
+        env:
+          TARGET: ${{ github.event.inputs.target }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$TARGET" = "production" ]; then
+            if [ "$REF_NAME" != "$PRODUCTION_BRANCH" ]; then
+              echo "::error::Refusing to deploy to production from '$REF_NAME'. Production ships what is on $PRODUCTION_BRANCH."
+              exit 1
+            fi
+            branch="$PRODUCTION_BRANCH"
+            target=production
+          else
+            # Prefixed so a preview can never collide with the production
+            # branch, whatever the current ref is called.
+            branch="preview-$REF_NAME"
+            target=preview
+            # Unreachable given the prefix above. Kept so the invariant is
+            # mechanical: change the scheme and this fails the run rather than
+            # quietly deploying to production.
+            if [ "$branch" = "$PRODUCTION_BRANCH" ]; then
+              echo "::error::Preview resolved to the production branch '$branch'."
+              exit 1
+            fi
+          fi
+          # Both outputs come from the same branch of this `if`, so the name the
+          # build is told and the branch it is deployed to cannot disagree.
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "Target '$TARGET' from '$REF_NAME' -> deploying as branch '$branch'"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -51,47 +92,20 @@ jobs:
       # has to be present in *this* step's environment. Without it the build
       # still succeeds and ships a bundle that fails at the first login
       # attempt — a failure that never reproduces locally, where .env exists.
+      #
+      # DEPLOY_TARGET is what makes a preview build title its tab „Prev-…“. It
+      # carries the target *name* rather than the prefix itself: an empty string
+      # is falsy in a GitHub expression, so the obvious
+      # `target == 'production' && '' || 'Prev-'` yields 'Prev-' for production
+      # too. Vite turns the name into a prefix instead.
       - run: npm run build
         env:
           VITE_SPOTIFY_CLIENT_ID: ${{ secrets.VITE_SPOTIFY_CLIENT_ID }}
+          DEPLOY_TARGET: ${{ steps.target.outputs.target }}
 
       # Scans dist/, so it must run after the build. This is the gate that
       # keeps the app's core promise mechanical rather than aspirational.
       - run: npm run check:novideo
-
-      # Resolved in its own step, and printed, because the branch name is the
-      # only thing deciding whether this lands on the live site. An earlier
-      # inline expression fell back to the current ref for previews, which on a
-      # single-branch repo meant every "preview" was a production deploy — with
-      # nothing in the log to say so.
-      #
-      # TARGET/REF_NAME arrive via env rather than being interpolated into the
-      # script, since branch names may carry shell metacharacters.
-      - id: target
-        env:
-          TARGET: ${{ github.event.inputs.target }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          if [ "$TARGET" = "production" ]; then
-            if [ "$REF_NAME" != "$PRODUCTION_BRANCH" ]; then
-              echo "::error::Refusing to deploy to production from '$REF_NAME'. Production ships what is on $PRODUCTION_BRANCH."
-              exit 1
-            fi
-            branch="$PRODUCTION_BRANCH"
-          else
-            # Prefixed so a preview can never collide with the production
-            # branch, whatever the current ref is called.
-            branch="preview-$REF_NAME"
-            # Unreachable given the prefix above. Kept so the invariant is
-            # mechanical: change the scheme and this fails the run rather than
-            # quietly deploying to production.
-            if [ "$branch" = "$PRODUCTION_BRANCH" ]; then
-              echo "::error::Preview resolved to the production branch '$branch'."
-              exit 1
-            fi
-          fi
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
-          echo "Target '$TARGET' from '$REF_NAME' -> deploying as branch '$branch'"
 
       # Direct Upload: the bundle is built here and pushed as static assets, so
       # Cloudflare never runs a build of its own. The app has no Pages

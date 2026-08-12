@@ -253,6 +253,12 @@ A `preview` run deploys as `preview-<branch>`, so from `main` it lands on
 preview from ever matching the production branch — without it, a preview run on
 a single-branch repo deploys straight to the live site.
 
+A preview build also says so in the tab: its title is „Prev-Spotify-NoVid“, and
+installed to a home screen it is called „Prev-Musik“. Production is untouched.
+The distinction is made at build time from the `DEPLOY_TARGET` variable the
+workflow passes to `npm run build`, so it holds on the random per-deployment URL
+too — not just on the `preview-<branch>` alias.
+
 Sign-in will not work on a preview unless that exact `/callback` URL is also
 registered in the Spotify dashboard, since Spotify rejects unregistered redirect
 URIs. Each deploy additionally gets a random per-deployment URL, which cannot be
