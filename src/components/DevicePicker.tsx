@@ -114,7 +114,9 @@ export function DevicePicker({ onClose }: { onClose: () => void }) {
               <span className="body">
                 <span className="name">{device.name}</span>
                 <span className="meta">
-                  {device.id === selectedDevice?.id ? t.devices.playingHere : ''}
+                  {device.id === selectedDevice?.id
+                    ? ` - ${t.devices.playingHere}`
+                    : ''}
                   {device.is_restricted && ` · ${t.devices.restricted}`}
                 </span>
               </span>
