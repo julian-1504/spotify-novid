@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -11,12 +12,21 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PLAYBACK_POLL_MS } from '../config';
 import * as player from '../api/player';
 import { partitionDevices, type PartitionedDevices } from '../devices/allowlist';
+import {
+  parseRemembered,
+  serialiseRemembered,
+  trackAbsence,
+  type RememberedDevice,
+} from '../devices/sticky';
 import type { Device, PlaybackState } from '../api/types';
 
 const SELECTED_DEVICE_KEY = 'novid.device';
 
 /** Stable identity so an empty device list doesn't invalidate memos each render. */
 const NO_DEVICES: PartitionedDevices = { allowed: [], hidden: [] };
+
+const readRemembered = (): RememberedDevice | null =>
+  parseRemembered(localStorage.getItem(SELECTED_DEVICE_KEY));
 
 interface PlayerValue {
   state: PlaybackState | undefined;
@@ -25,6 +35,12 @@ interface PlayerValue {
   hiddenDevices: PartitionedDevices['hidden'];
   /** The speaker commands are sent to, if it is still available. */
   selectedDevice: Device | undefined;
+  /**
+   * The chosen speaker's name while Spotify is not reporting it — the box is
+   * switched off, or has briefly dropped off Connect. Distinct from "no speaker
+   * chosen", which is what an empty selection means.
+   */
+  unavailableDeviceName: string | null;
   selectDevice: (device: Device) => Promise<void>;
   devicesLoading: boolean;
   refresh: () => void;
@@ -36,9 +52,11 @@ const PlayerContext = createContext<PlayerValue | null>(null);
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string | null>(() =>
-    localStorage.getItem(SELECTED_DEVICE_KEY),
+  const [remembered, setRemembered] = useState<RememberedDevice | null>(
+    readRemembered,
   );
+  // Consecutive device polls that did not contain the remembered speaker.
+  const missStreak = useRef(0);
 
   const devicesQuery = useQuery({
     queryKey: ['devices'],
@@ -61,25 +79,41 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const partitioned = devicesQuery.data ?? NO_DEVICES;
   const devices = partitioned.allowed;
 
-  const selectedDevice = useMemo(
-    () =>
-      devices.find((d) => d.id === selectedId) ??
-      // Fall back to whatever Spotify says is active, but only if we are
-      // allowed to talk to it.
-      devices.find((d) => d.is_active),
-    [devices, selectedId],
-  );
-
-  // If the remembered speaker is switched off, forget it rather than sending
-  // commands into the void.
-  useEffect(() => {
-    if (selectedId && !devicesQuery.isLoading && devices.length > 0) {
-      if (!devices.some((d) => d.id === selectedId)) {
-        localStorage.removeItem(SELECTED_DEVICE_KEY);
-        setSelectedId(null);
-      }
+  const selectedDevice = useMemo(() => {
+    if (remembered) {
+      // An explicit choice is never second-guessed. If the box is not in the
+      // list right now it is unavailable, not replaced — silently retargeting
+      // to another speaker is how audio ends up in the wrong room.
+      return devices.find((d) => d.id === remembered.id);
     }
-  }, [devices, selectedId, devicesQuery.isLoading]);
+    // Nothing chosen yet, so follow whatever Spotify says is active — but only
+    // if we are allowed to talk to it.
+    return devices.find((d) => d.is_active);
+  }, [devices, remembered]);
+
+  const unavailableDeviceName =
+    remembered && !selectedDevice ? (remembered.name || null) : null;
+
+  // Forget the remembered speaker only once it has been genuinely absent for a
+  // while. A single missing poll is normal for a speaker that has gone idle.
+  useEffect(() => {
+    if (!remembered || devicesQuery.isLoading || !devicesQuery.isSuccess) return;
+
+    const present = devices.some((d) => d.id === remembered.id);
+    const { streak, forget } = trackAbsence(missStreak.current, present);
+    missStreak.current = streak;
+
+    if (forget) {
+      localStorage.removeItem(SELECTED_DEVICE_KEY);
+      setRemembered(null);
+    }
+  }, [
+    devices,
+    remembered,
+    devicesQuery.isLoading,
+    devicesQuery.isSuccess,
+    devicesQuery.dataUpdatedAt,
+  ]);
 
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['playback'] });
@@ -89,8 +123,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const selectDevice = useCallback(
     async (device: Device) => {
       if (!device.id) return;
-      localStorage.setItem(SELECTED_DEVICE_KEY, device.id);
-      setSelectedId(device.id);
+      const choice = { id: device.id, name: device.name };
+      localStorage.setItem(SELECTED_DEVICE_KEY, serialiseRemembered(choice));
+      missStreak.current = 0;
+      setRemembered(choice);
       await player.transferPlayback(device.id, false);
       refresh();
     },
@@ -112,6 +148,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       devices,
       hiddenDevices: partitioned.hidden,
       selectedDevice,
+      unavailableDeviceName,
       selectDevice,
       devicesLoading: devicesQuery.isLoading,
       refresh,
@@ -122,6 +159,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       devices,
       partitioned.hidden,
       selectedDevice,
+      unavailableDeviceName,
       selectDevice,
       devicesQuery.isLoading,
       refresh,

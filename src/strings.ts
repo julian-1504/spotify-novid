@@ -110,6 +110,9 @@ export const t = {
     pickSpeaker: 'Wähle unten eine Box aus',
     noSpeakerFound: 'Keine Box gefunden',
     tapToPick: 'Tippe hier, um eine Box zu wählen',
+    // The chosen box has gone quiet on Spotify. Naming it beats a generic
+    // "keine Box": the kid knows which one to go and switch on.
+    deviceOff: (name: string) => `${name} ist gerade aus`,
     play: 'Abspielen',
     pause: 'Pause',
     next: 'Weiter',

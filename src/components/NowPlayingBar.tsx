@@ -14,7 +14,8 @@ function subtitleFor(item: Track | Episode | null | undefined): string {
 }
 
 export function NowPlayingBar() {
-  const { state, selectedDevice, devices, command } = usePlayer();
+  const { state, selectedDevice, unavailableDeviceName, devices, command } =
+    usePlayer();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [scrub, setScrub] = useState<number | null>(null);
 
@@ -48,14 +49,25 @@ export function NowPlayingBar() {
         >
           <span className="np-device-label">
             <Icon
-              name={noSpeaker && devices.length === 0 ? 'speaker-off' : 'speaker'}
+              name={
+                noSpeaker && (devices.length === 0 || unavailableDeviceName)
+                  ? 'speaker-off'
+                  : 'speaker'
+              }
               size={18}
             />
-            {noSpeaker
-              ? devices.length > 0
-                ? t.player.tapToPick
-                : t.player.noSpeakerFound
-              : selectedDevice.name}
+            {/*
+              Three different situations, and a kid needs to tell them apart:
+              the chosen box is switched off, no box has been chosen yet, or
+              none was found at all.
+            */}
+            {selectedDevice
+              ? selectedDevice.name
+              : unavailableDeviceName
+                ? t.player.deviceOff(unavailableDeviceName)
+                : devices.length > 0
+                  ? t.player.tapToPick
+                  : t.player.noSpeakerFound}
           </span>
           <Icon name="chevron-down" size={18} />
         </button>

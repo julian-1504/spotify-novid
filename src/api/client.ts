@@ -45,13 +45,24 @@ interface RequestOptions {
   query?: Record<string, string | number | undefined>;
   /** Internal: prevents infinite refresh loops. */
   retrying?: boolean;
+  /** Internal: how many 202s this request has already sat through. */
+  accepted?: number;
 }
+
+/**
+ * Spotify answers player commands with 202 when it has taken the command but
+ * the target device has not acted on it yet — a speaker that is still waking.
+ * Treating that as success is how the app ends up claiming music is playing
+ * while the room stays silent, so wait and ask again.
+ */
+const ACCEPTED_RETRIES = 3;
+const ACCEPTED_WAIT_MS = 1000;
 
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, query, retrying = false } = options;
+  const { method = 'GET', body, query, retrying = false, accepted = 0 } = options;
 
   let token: string;
   try {
@@ -85,6 +96,16 @@ export async function apiRequest<T>(
       throw err;
     }
     return apiRequest<T>(path, { ...options, retrying: true });
+  }
+
+  // "Accepted, but nothing has happened yet." Give the device a moment and ask
+  // again rather than reporting a command that may never take effect.
+  if (res.status === 202) {
+    if (accepted >= ACCEPTED_RETRIES) {
+      throw new ApiError(202, 'The speaker did not answer the command.');
+    }
+    await new Promise((resolve) => setTimeout(resolve, ACCEPTED_WAIT_MS));
+    return apiRequest<T>(path, { ...options, accepted: accepted + 1 });
   }
 
   if (res.status === 429) {

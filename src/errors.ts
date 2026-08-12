@@ -32,6 +32,11 @@ export function toFriendlyError(error: unknown): FriendlyError {
     if (error.status === 404 || raw.includes('no active device')) {
       return { message: t.errors.noDevice, topic: 'keine-box' };
     }
+    // The speaker was there and took the command, but never acted on it. That
+    // is a sound problem, not a missing-box problem.
+    if (error.status === 202) {
+      return { message: t.errors.restricted, topic: 'kein-ton' };
+    }
     if (raw.includes('restriction')) {
       return { message: t.errors.restricted, topic: 'kein-ton' };
     }
