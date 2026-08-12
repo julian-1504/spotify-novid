@@ -23,6 +23,7 @@ import {
 import * as webPlayback from './webPlayback';
 import { watchDocument, type Violation } from './domGuard';
 import { bindHandlers, publishMetadata } from './mediaSession';
+import { describeFailure, type SelfFailure } from './selfFailure';
 import { t } from '../strings';
 import type { Device, PlaybackState } from '../api/types';
 
@@ -58,8 +59,12 @@ interface PlayerValue {
   /** True while this phone is the chosen target. */
   selfSelected: boolean;
   selfBooting: boolean;
-  /** Why making this phone a player failed, in German, or null. */
-  selfError: string | null;
+  /**
+   * Why making this phone a player failed, and what can be done about it.
+   * Carries the kind rather than a bare sentence so the UI can tell the one
+   * failure a fresh sign-in fixes from the ones it does not.
+   */
+  selfError: SelfFailure | null;
   /**
    * Set when the runtime no-video guard tripped. Non-recoverable on purpose:
    * the app's central promise is no longer being kept.
@@ -80,7 +85,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // The live SDK device id, once this phone has registered itself as a player.
   const [selfId, setSelfId] = useState<string | null>(null);
   const [selfBooting, setSelfBooting] = useState(false);
-  const [selfError, setSelfError] = useState<string | null>(null);
+  const [selfError, setSelfError] = useState<SelfFailure | null>(null);
   const [guardViolation, setGuardViolation] = useState<Violation | null>(null);
 
   /**
@@ -226,7 +231,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setSelfError(null);
     setSelfBooting(true);
     try {
-      const id = await webPlayback.boot((err) => setSelfError(t.player.selfError(err.kind)));
+      const id = await webPlayback.boot((err) => setSelfError(describeFailure(err.kind)));
       await webPlayback.activate();
       setSelfId(id);
 
@@ -240,7 +245,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (err) {
       const kind = err instanceof webPlayback.WebPlaybackError ? err.kind : 'unsupported';
-      setSelfError(t.player.selfError(kind));
+      setSelfError(describeFailure(kind));
       return false;
     } finally {
       setSelfBooting(false);
@@ -257,7 +262,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // No `activate()` here: there has been no tap, so iOS would refuse anyway.
     // The device is registered; the first play tap unlocks the audio.
     void webPlayback
-      .boot((err) => setSelfError(t.player.selfError(err.kind)))
+      .boot((err) => setSelfError(describeFailure(err.kind)))
       .then((id) => {
         setSelfId(id);
         // Refetch at once: the cached device list predates this registration,

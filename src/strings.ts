@@ -128,18 +128,18 @@ export const t = {
     // Shown in the now-playing bar while the phone is the target, because the
     // sound comes out of the phone unless it is paired with a box.
     phoneBluetoothHint: 'Über Bluetooth mit der Box verbinden',
-    selfError: (kind: string) => {
-      switch (kind) {
-        case 'premium':
-          return 'Dieses Konto ist kein Premium-Konto. Frag bitte einen Erwachsenen.';
-        case 'auth':
-          return 'Die Anmeldung ist abgelaufen. Frag bitte einen Erwachsenen.';
-        case 'offline':
-        case 'timeout':
-          return 'Das hat nicht geklappt. Bist du im WLAN?';
-        default:
-          return 'Dieses Handy kann leider nicht selbst abspielen.';
-      }
+    /*
+     * Which of these is shown, and whether „Neu anmelden" is offered with it,
+     * is decided in player/selfFailure.ts — this is only the wording.
+     */
+    selfErrors: {
+      // Deliberately not "die Anmeldung ist abgelaufen": usually it has not.
+      // The app is asking for a permission it was never granted, and saying
+      // otherwise sends a grown-up looking for a problem that is not there.
+      auth: 'Dafür muss sich die App neu bei Spotify anmelden. Das kann nur ein Erwachsener, weil dafür das Spotify-Passwort nötig ist.',
+      premium: 'Dieses Konto ist kein Premium-Konto. Frag bitte einen Erwachsenen.',
+      offline: 'Das hat nicht geklappt. Bist du im WLAN?',
+      unsupported: 'Dieses Handy kann leider nicht selbst abspielen.',
     },
   },
 

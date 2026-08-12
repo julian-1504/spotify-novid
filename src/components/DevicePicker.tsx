@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePlayer } from '../player/PlayerProvider';
+import { useAuth } from '../auth/AuthProvider';
 import * as player from '../api/player';
 import { explainRejection } from '../devices/allowlist';
 import { Icon, type IconName } from './Icon';
@@ -34,6 +35,7 @@ export function DevicePicker({ onClose }: { onClose: () => void }) {
     selfBooting,
     selfError,
   } = usePlayer();
+  const { signIn } = useAuth();
   const [busy, setBusy] = useState(false);
 
   const choose = async (device: Device) => {
@@ -152,12 +154,35 @@ export function DevicePicker({ onClose }: { onClose: () => void }) {
         </div>
 
         {selfError && (
-          <p className="muted" style={{ fontSize: 13 }} role="alert">
-            {selfError}{' '}
-            <Link to="/hilfe?thema=handy-abspielen" onClick={onClose}>
-              {t.devices.helpLink}
-            </Link>
-          </p>
+          <div role="alert">
+            <p className="muted" style={{ fontSize: 13 }}>
+              {selfError.message}{' '}
+              <Link to={`/hilfe?thema=${selfError.topic}`} onClick={onClose}>
+                {t.devices.helpLink}
+              </Link>
+            </p>
+            {/*
+              Offered only where it can actually work — never for a non-Premium
+              account, where it would walk a kid through the password dance and
+              land them back on this same message.
+
+              Deliberately an offer and not a forced logout: the grant is
+              usually alive and merely missing the newer `streaming` scope, so
+              tearing the session down here would take away the boxes that were
+              working a second ago. src/api/client.ts owns that decision and
+              makes it on its own when a grant is genuinely dead.
+            */}
+            {selfError.offerReauth && (
+              <button
+                className="btn with-icon"
+                style={{ width: '100%' }}
+                onClick={() => void signIn()}
+              >
+                <Icon name="spotify" size={20} />
+                {t.login.buttonExpired}
+              </button>
+            )}
+          </div>
         )}
 
         <div className="rows">

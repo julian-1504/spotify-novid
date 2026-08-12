@@ -148,10 +148,37 @@ export function boot(onFailure?: (err: WebPlaybackError) => void): Promise<strin
     });
     player = instance;
 
-    // Fatal, one-shot conditions. `playback_error` is deliberately not here:
-    // it fires for transient stumbles and must not tear the device down.
+    /*
+     * Fatal, one-shot conditions. `playback_error` is deliberately not here:
+     * it fires for transient stumbles and must not tear the device down.
+     *
+     * `authentication_error` deliberately does NOT call markNeedsReauth, and
+     * that omission is the design rather than a gap. The SDK reports the same
+     * error whether the grant is dead or merely predates the `streaming` scope,
+     * and the second is by far the common case — that grant still browses and
+     * still plays to every real box. Escalating on the SDK's word would blank
+     * the tokens and drop the whole app to the login screen because a kid
+     * tapped the new option once.
+     *
+     * src/api/client.ts owns that judgement: any real request against a dead
+     * grant raises AuthExpiredError and expires the session there. This path
+     * only offers a fresh sign-in, via player/selfFailure.ts.
+     */
+    /*
+     * A fatal error while still booting has to end the boot, not just be
+     * reported alongside it. These errors arrive within a second or two, but
+     * `ready` then never comes — so without this the boot sat out its full
+     * READY_TIMEOUT_MS and rejected as 'timeout', overwriting the specific
+     * diagnosis that had already arrived. A kid waited twenty seconds to be
+     * asked whether they were on wifi, when the real answer was that an adult
+     * needed to sign in again.
+     */
+    let failBoot: ((err: WebPlaybackError) => void) | null = null;
+
     const fatal = (kind: WebPlaybackFailure) => (payload: { message: string }) => {
-      onFailure?.(new WebPlaybackError(kind, payload?.message ?? kind));
+      const err = new WebPlaybackError(kind, payload?.message ?? kind);
+      if (failBoot) failBoot(err);
+      else onFailure?.(err);
     };
     instance.addListener('initialization_error', fatal('unsupported') as never);
     instance.addListener('authentication_error', fatal('auth') as never);
@@ -162,8 +189,19 @@ export function boot(onFailure?: (err: WebPlaybackError) => void): Promise<strin
         () => reject(new WebPlaybackError('timeout', 'the SDK never became ready')),
         READY_TIMEOUT_MS,
       );
-      instance.addListener('ready', ((payload: { device_id: string }) => {
+      const settle = () => {
         clearTimeout(timer);
+        // Later errors are mid-session ones and belong to onFailure again.
+        failBoot = null;
+      };
+
+      failBoot = (err) => {
+        settle();
+        reject(err);
+      };
+
+      instance.addListener('ready', ((payload: { device_id: string }) => {
+        settle();
         resolve(payload.device_id);
       }) as never);
       void instance.connect();
