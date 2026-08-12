@@ -119,6 +119,39 @@ export const t = {
     previous: 'Zurück',
     position: 'Position',
     volume: 'Lautstärke',
+
+    // This phone as the player. Podcasts do not play on every box, but they
+    // always play here — and from here they reach the box over Bluetooth.
+    thisPhone: 'Dieses Handy',
+    thisPhoneHint: 'Podcasts gehen hier immer',
+    startingPhone: 'Handy wird vorbereitet …',
+    // Shown in the now-playing bar while the phone is the target, because the
+    // sound comes out of the phone unless it is paired with a box.
+    phoneBluetoothHint: 'Über Bluetooth mit der Box verbinden',
+    selfError: (kind: string) => {
+      switch (kind) {
+        case 'premium':
+          return 'Dieses Konto ist kein Premium-Konto. Frag bitte einen Erwachsenen.';
+        case 'auth':
+          return 'Die Anmeldung ist abgelaufen. Frag bitte einen Erwachsenen.';
+        case 'offline':
+        case 'timeout':
+          return 'Das hat nicht geklappt. Bist du im WLAN?';
+        default:
+          return 'Dieses Handy kann leider nicht selbst abspielen.';
+      }
+    },
+  },
+
+  /**
+   * Shown when the runtime no-video guard trips. Deliberately a full stop
+   * rather than a warning: the promise the app is built on is no longer being
+   * kept, so it stops instead of carrying on quietly.
+   */
+  guard: {
+    title: 'Die App wurde angehalten',
+    body: 'Auf dieser Seite ist etwas aufgetaucht, das hier nicht hingehört. Zur Sicherheit wurde die Wiedergabe gestoppt.',
+    askParent: 'Bitte zeig das einem Erwachsenen.',
   },
 
   devices: {

@@ -29,6 +29,10 @@ export function DevicePicker({ onClose }: { onClose: () => void }) {
     selectDevice,
     devicesLoading,
     command,
+    selectSelf,
+    selfSelected,
+    selfBooting,
+    selfError,
   } = usePlayer();
   const [busy, setBusy] = useState(false);
 
@@ -37,6 +41,22 @@ export function DevicePicker({ onClose }: { onClose: () => void }) {
     try {
       await selectDevice(device);
       onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Not routed through `choose`: the SDK has to be started, and `activate()`
+   * must run inside this very tap or iOS will play silently forever. The sheet
+   * also stays open on failure so the kid can read why.
+   */
+  const chooseSelf = async () => {
+    setBusy(true);
+    try {
+      // Only close on success — on failure the sheet has to stay open, because
+      // it is where the reason is shown.
+      if (await selectSelf()) onClose();
     } finally {
       setBusy(false);
     }
@@ -100,6 +120,44 @@ export function DevicePicker({ onClose }: { onClose: () => void }) {
               {t.devices.helpLink}
             </Link>
           </div>
+        )}
+
+        {/*
+          First, and always present: a box may refuse a podcast, but this phone
+          never does. From here the sound reaches the box over Bluetooth, which
+          is what the hint under the name is about.
+        */}
+        <div className="rows">
+          <button
+            className={`device ${selfSelected ? 'on' : ''}`}
+            onClick={() => void chooseSelf()}
+            disabled={busy}
+          >
+            <Icon name="phone" size={26} />
+            <span className="body">
+              <span className="name">{t.player.thisPhone}</span>
+              {/*
+                The meta renders inline with the name, so it carries its own
+                leading separator — same as the device rows below.
+              */}
+              <span className="meta">
+                {selfBooting
+                  ? ` - ${t.player.startingPhone}`
+                  : selfSelected
+                    ? ` - ${t.devices.playingHere} · ${t.player.phoneBluetoothHint}`
+                    : ` - ${t.player.thisPhoneHint}`}
+              </span>
+            </span>
+          </button>
+        </div>
+
+        {selfError && (
+          <p className="muted" style={{ fontSize: 13 }} role="alert">
+            {selfError}{' '}
+            <Link to="/hilfe?thema=handy-abspielen" onClick={onClose}>
+              {t.devices.helpLink}
+            </Link>
+          </p>
         )}
 
         <div className="rows">

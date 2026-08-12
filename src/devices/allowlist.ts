@@ -14,6 +14,7 @@ import {
   ALLOWED_DEVICE_IDS,
   ALLOWED_DEVICE_TYPES,
   BLOCKED_DEVICE_TYPES,
+  SDK_DEVICE_TYPE,
 } from '../config';
 import { t } from '../strings';
 import type { Device } from '../api/types';
@@ -24,12 +25,33 @@ export type RejectionReason =
   | 'not-pinned'
   | 'type-not-allowed';
 
-/** Why a device is unavailable, or null if it is allowed. */
-export function rejectionReason(device: Device): RejectionReason | null {
+/**
+ * Why a device is unavailable, or null if it is allowed.
+ *
+ * `selfDeviceId` is this phone, when it has registered itself as a playback
+ * device through the Web Playback SDK. It has to be admitted by id: the SDK
+ * reports `type: "Computer"` (confirmed by `npm run spike:player`), and
+ * widening the type allowlist to let it through would re-admit every desktop
+ * running Spotify — including one plugged into a TV. The id is minted fresh by
+ * the SDK each session, so nothing else can present it.
+ */
+export function rejectionReason(
+  device: Device,
+  selfDeviceId?: string | null,
+): RejectionReason | null {
   // A device with no id cannot be targeted by the API at all.
   if (!device.id) return 'no-id';
 
   const type = device.type?.toLowerCase() ?? '';
+
+  // This phone, registered by the SDK. Matching the id alone is not enough: if
+  // that id were ever wrong, an id-only exception would admit whatever device
+  // happened to carry it — a TV included. Requiring the SDK's own type as well
+  // means the worst a wrong id can do is admit another computer, which is the
+  // failure the blocklist below already exists to prevent.
+  if (selfDeviceId && device.id === selfDeviceId && type === SDK_DEVICE_TYPE) {
+    return null;
+  }
 
   // Blocklist wins over everything, including an explicit id pin. These are the
   // types that can render video.
@@ -42,12 +64,15 @@ export function rejectionReason(device: Device): RejectionReason | null {
   return ALLOWED_DEVICE_TYPES.includes(type) ? null : 'type-not-allowed';
 }
 
-export function isAllowedDevice(device: Device): boolean {
-  return rejectionReason(device) === null;
+export function isAllowedDevice(device: Device, selfDeviceId?: string | null): boolean {
+  return rejectionReason(device, selfDeviceId) === null;
 }
 
-export function filterAllowedDevices(devices: Device[]): Device[] {
-  return devices.filter(isAllowedDevice);
+export function filterAllowedDevices(
+  devices: Device[],
+  selfDeviceId?: string | null,
+): Device[] {
+  return devices.filter((d) => isAllowedDevice(d, selfDeviceId));
 }
 
 /** Why a device is unusable, in words a kid can read. */
@@ -75,12 +100,15 @@ export interface PartitionedDevices {
  * is what lets the UI distinguish "no speaker is switched on" from "a device is
  * there but it has a screen" — two problems with completely different fixes.
  */
-export function partitionDevices(devices: Device[]): PartitionedDevices {
+export function partitionDevices(
+  devices: Device[],
+  selfDeviceId?: string | null,
+): PartitionedDevices {
   const allowed: Device[] = [];
   const hidden: { device: Device; reason: RejectionReason }[] = [];
 
   for (const device of devices) {
-    const reason = rejectionReason(device);
+    const reason = rejectionReason(device, selfDeviceId);
     if (reason === null) allowed.push(device);
     else hidden.push({ device, reason });
   }

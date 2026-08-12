@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   FORGET_AFTER_MISSES,
+  isSelfSentinel,
   parseRemembered,
+  SELF_DEVICE_SENTINEL,
   serialiseRemembered,
   trackAbsence,
 } from './sticky';
@@ -71,5 +73,37 @@ describe('parseRemembered', () => {
   it('rejects JSON that carries no usable id', () => {
     expect(parseRemembered('{"name":"Küche"}')).toBeNull();
     expect(parseRemembered('{"id":""}')).toBeNull();
+  });
+
+  /**
+   * The Web Playback SDK mints a new device id every session. Storing the live
+   * id would remember something that can never reappear, so trackAbsence would
+   * forget the choice ~30s into every launch — the kid's box "forgetting
+   * itself" each time they open the app.
+   */
+  it('round-trips the self sentinel like any other choice', () => {
+    const stored = serialiseRemembered({
+      id: SELF_DEVICE_SENTINEL,
+      name: 'Dieses Handy',
+    });
+    expect(parseRemembered(stored)).toEqual({
+      id: SELF_DEVICE_SENTINEL,
+      name: 'Dieses Handy',
+    });
+  });
+
+  it('recognises the sentinel and nothing else', () => {
+    expect(isSelfSentinel(SELF_DEVICE_SENTINEL)).toBe(true);
+    expect(isSelfSentinel('abc_amzn_1')).toBe(false);
+    expect(isSelfSentinel('')).toBe(false);
+    expect(isSelfSentinel(null)).toBe(false);
+    expect(isSelfSentinel(undefined)).toBe(false);
+  });
+
+  // It has to be something Spotify would never issue, or a real box could
+  // collide with it and inherit the phone's behaviour.
+  it('uses a sentinel that cannot be mistaken for a Spotify device id', () => {
+    expect(SELF_DEVICE_SENTINEL).toMatch(/^@/);
+    expect(SELF_DEVICE_SENTINEL).not.toMatch(/^[0-9a-f]+$/i);
   });
 });

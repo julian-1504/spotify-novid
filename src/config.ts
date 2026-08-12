@@ -21,7 +21,22 @@ export function redirectUri(): string {
   return `${window.location.origin}/callback`;
 }
 
+/**
+ * `streaming` (with the two `user-read-*` scopes the SDK requires alongside it)
+ * is what lets this phone become a playback device itself — the only way to get
+ * podcasts onto a box that refuses them over Connect.
+ *
+ * Adding it invalidates every existing grant: a refresh token does not carry a
+ * scope that was not asked for originally, so all five accounts have to sign in
+ * once more. That is the „Frag bitte einen Erwachsenen" flow.
+ *
+ * The exact set is the one `npm run spike:player` proved works. Trimming it
+ * needs a re-run, not a guess.
+ */
 export const SCOPES = [
+  'streaming',
+  'user-read-email',
+  'user-read-private',
   'user-read-playback-state',
   'user-modify-playback-state',
   'user-read-currently-playing',
@@ -30,6 +45,26 @@ export const SCOPES = [
   'user-library-read',
   'user-read-playback-position',
 ] as const;
+
+/**
+ * The one remote origin the app loads code from, and consequently the only
+ * iframe the runtime guard tolerates. `npm run spike:player` observed exactly
+ * one frame — https://sdk.scdn.co/embedded/index.html, with
+ * `allow="encrypted-media; autoplay"` — and no video element at all.
+ *
+ * Kept here beside the device allowlist because it is the same kind of rule: a
+ * build-time decision about what the app may talk to.
+ */
+export const SDK_ORIGIN = 'https://sdk.scdn.co';
+
+/**
+ * The device type the Web Playback SDK registers itself under, lowercased.
+ * Observed via `npm run spike:player`, which reported `type = Computer`.
+ *
+ * The allowlist requires this *as well as* a matching device id before it will
+ * admit the phone, so an id that is somehow wrong still cannot let a TV in.
+ */
+export const SDK_DEVICE_TYPE = 'computer';
 
 /**
  * Playback targets are filtered allowlist-first: a device whose `type` is not

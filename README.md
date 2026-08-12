@@ -9,7 +9,9 @@ stream itself — it browses the catalogue and tells a speaker what to play.
 
 ## How "no video" is guaranteed
 
-Three independent layers:
+Four layers. Read the fourth before trusting the first — since the app gained
+the ability to play on the phone itself, the static check no longer sees
+everything that runs.
 
 1. **The app renders no video.** There is no `<video>`, no `<iframe>`, no
    embed. `npm run check:novideo` scans both `src/` and the built bundle, and
@@ -24,9 +26,33 @@ Three independent layers:
    never offered as a target. The filter is allowlist-first, so an unrecognised
    device type is hidden rather than offered.
 3. **A speaker has no screen.** A video podcast played to one is just audio.
+4. **A runtime DOM guard** (`src/player/domGuard.ts`) watches the live document
+   for the whole session and stops the app dead if a `<video>` element or any
+   iframe other than the SDK's appears.
 
 The allowlist lives in a committed file rather than an in-app settings screen on
 purpose: a settings screen would let a kid add the living-room TV back.
+
+### Why layer 4 had to exist
+
+Layer 1 scans `src/` and `dist/`. That covered everything until the app started
+using the **Web Playback SDK** to play on the phone itself. The SDK is fetched
+from `sdk.scdn.co` at runtime and injects a cross-origin iframe — so it appears
+in neither directory, and `npm run check:novideo` would go on printing ✓ while a
+frame this project never compiled sat in the page. Worse, Spotify can change
+what is inside that frame without anyone here rebuilding anything.
+
+So the guarantee gained a half that runs in the browser. It allows exactly one
+iframe origin, matched by parsed origin rather than by `startsWith` — a prefix
+test would accept `https://sdk.scdn.co.attacker.example`. When it trips it tears
+playback down and shows a stop screen, rather than logging and continuing.
+
+**Its limit, which cannot be engineered away:** same-origin policy means the
+*inside* of Spotify's frame is not inspectable. Layer 4 guarantees this
+document, not that one. What makes that tolerable is layer 3 — a speaker has no
+screen, and that holds no matter what any script does. It is the only layer that
+survives an adversarial SDK, which is why it is worth keeping even though it
+looks like the most obvious of the four.
 
 ## Setup
 
@@ -75,6 +101,34 @@ account — the Web API only lists devices the account already knows about.
 
 For the tightest possible setting, put your speakers' device IDs into
 `ALLOWED_DEVICE_IDS` and nothing else will ever be selectable.
+
+### 2a. Can the phone itself be the box?
+
+Podcasts are the one thing Connect cannot deliver everywhere: Spotify classifies
+them as *mixed media* and withholds them from audio-only devices, so an Echo Dot
+accepts the command, reports that it is playing, and stays silent. The way out
+under consideration is the Web Playback SDK — the phone becomes the Connect
+device, and the box is reached over Bluetooth instead of over Spotify.
+
+That rests on an assumption: a browser is not an audio-only device, so mixed
+media should not be withheld from it. Settle it before building on it.
+
+```bash
+npm run spike:player -- <client-id> <episode-id> [track-id]
+```
+
+It boots the SDK, reports the exact `type` the phone-device presents to
+`/me/player/devices`, plays a music track as a control, then plays a podcast
+episode — and prints one of three verdicts. It also reports what the SDK puts in
+the page, which is the part `npm run check:novideo` structurally cannot see: the
+SDK is fetched from `sdk.scdn.co` at runtime, so it appears in neither `src/` nor
+`dist/`.
+
+**Run it on a kid's actual phone**, not just a desktop — that is the case that
+matters and the one the SDK is flakiest on. EME needs a secure context and a LAN
+IP over plain HTTP is not one, so forward the port with `chrome://inspect` →
+*Port forwarding* (8888 → `127.0.0.1:8888`) and the phone will treat it as
+localhost.
 
 ### 2b. Register each speaker, once per account
 
@@ -271,6 +325,41 @@ stranger only ever reaches a login screen, and Development Mode admits only your
 five allowlisted accounts — but anyone with the link can see that screen. Put it
 behind Cloudflare Access if that bothers you.
 
+## Playing on the phone (and why)
+
+Spotify classifies podcasts as **mixed media** and withholds them from
+audio-only Connect devices. An Echo Dot therefore accepts the play command,
+reports that it is playing, and stays silent. Nothing in the Web API fixes that:
+the app's `uris:[spotify:episode:…]` call is the supported one, and it succeeds.
+The audio simply never comes out.
+
+So the phone can be the playback device instead. `„Dieses Handy"` sits at the
+top of the box picker; choosing it boots the Web Playback SDK, which registers
+as an ordinary Connect device. **The box is then reached over Bluetooth**, as a
+plain speaker Spotify never sees — which is why the restriction stops applying.
+`npm run spike:player` confirmed an episode playing this way, with position
+advancing and `type: "episode"`.
+
+Everything downstream is unchanged: the SDK device is driven through the same
+`/me/player/*` endpoints as any speaker, so `playEpisode`, seeking and the
+pollers needed no changes at all.
+
+Four things worth knowing:
+
+- **The pairing is a one-off a kid must be told about.** Until the phone is
+  paired to a box, the sound comes out of the phone. The now-playing bar says so
+  and the Hilfe tab has two topics for it (`handy-abspielen`, `bluetooth`).
+- **The SDK device reports `type: "Computer"`**, which `BLOCKED_DEVICE_TYPES`
+  blocks on purpose. It is admitted by matching *both* the id the SDK minted
+  this session *and* that type — an id-only exception would admit whatever
+  device happened to carry a wrong id, a TV included. `computer` stays blocked,
+  so every other desktop is still refused.
+- **The phone now streams, not the box.** That spends the phone's battery and,
+  away from wifi, its mobile data. Connect had the box stream directly.
+- **The chosen phone is stored as a sentinel**, not as a device id. The SDK
+  mints a new id every session, so storing the live one would have the
+  miss-counter forget the choice about thirty seconds into every launch.
+
 ## The Hilfe tab
 
 The app is in German, aimed at roughly 10–13 year olds, so the kids can fix the
@@ -309,6 +398,12 @@ token silently at launch.
 happens the app shows an "ask a parent" screen, because re-authorizing means
 entering the Spotify password.
 
+**And once, when you deploy the phone-as-player build.** It adds the `streaming`
+scope (plus the two `user-read-*` scopes the SDK requires alongside it), and a
+refresh token does not carry a scope that was not requested originally. So every
+account has to sign in once more — the same "ask a parent" screen, for all five
+at once. Worth deploying at a time when you are around to type passwords.
+
 ## Commands
 
 | Command | What it does |
@@ -318,6 +413,7 @@ entering the Spotify password.
 | `npm test` | Unit tests (device allowlist) |
 | `npm run check:novideo` | Fails if any video surface is in `src/` or `dist/` |
 | `npm run spike -- <client-id>` | Step-0 account/device/podcast checks |
+| `npm run spike:player -- <client-id> <episode-id>` | Step-0 check: can the phone itself be the playback device? |
 | `node scripts/make-icons.mjs` | Regenerate PWA launcher icons |
 
 ## Things worth knowing

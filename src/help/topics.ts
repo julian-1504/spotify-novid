@@ -15,6 +15,8 @@ import type { IconName } from '../components/Icon';
 export const HELP_TOPIC_IDS = [
   'keine-box',
   'kein-ton',
+  'handy-abspielen',
+  'bluetooth',
   'anmelden',
   'kein-internet',
   'suche-leer',
@@ -65,12 +67,45 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Hört gerade jemand anders auf derselben Box? Dann wartet ihr euch gegenseitig aus.',
       // Podcasts are the odd one out: Spotify counts them as "mixed media", so
       // some boxes take the command, report that they are playing and stay
-      // silent anyway. Nothing is broken and there is nothing to restart — the
-      // only thing that helps is a different box. Music is the giveaway,
-      // because music plays everywhere.
+      // silent anyway. Nothing is broken and there is nothing to restart.
+      //
+      // This used to end at "try another box", which for a kid whose room has
+      // an Echo meant "no podcasts at all". Playing on the phone works on every
+      // box, because the box is then only a Bluetooth speaker and Spotify never
+      // sees it. Music is still the giveaway, because music plays everywhere.
       'Ein Podcast bleibt still, obwohl oben ein Titel steht? Podcasts gehen leider nicht auf jeder Box.',
-      'Probiere den Podcast auf einer anderen Box. Zum Testen kannst du auch ein Lied anmachen: Läuft das Lied, ist die Box in Ordnung.',
+      'Zum Testen kannst du ein Lied anmachen: Läuft das Lied, ist die Box in Ordnung.',
+      'Wähle unten bei der Box „Dieses Handy“ aus. Damit läuft der Podcast immer.',
     ],
+  },
+  {
+    id: 'handy-abspielen',
+    icon: 'phone',
+    title: 'Auf dem Handy abspielen',
+    intro:
+      'Dein Handy kann selbst die „Box“ sein. Das ist der sichere Weg für Podcasts, denn die gehen nicht auf jeder Box.',
+    steps: [
+      'Tippe unten auf die Zeile mit dem Lautsprecher.',
+      'Wähle ganz oben „Dieses Handy“ aus.',
+      'Jetzt kommt der Ton aus dem Handy. Damit ihn alle im Zimmer hören, verbinde das Handy per Bluetooth mit der Box.',
+      'Der Ton geht weiter, wenn du das Handy sperrst. Zum Pausieren tippst du auf dem Sperrbildschirm.',
+    ],
+  },
+  {
+    id: 'bluetooth',
+    icon: 'speaker',
+    title: 'Handy und Box per Bluetooth verbinden',
+    intro:
+      'Wenn „Dieses Handy“ abspielt, kommt der Ton erst mal nur aus dem Handy. Über Bluetooth hört ihr ihn auf der Box.',
+    steps: [
+      'Schalte die Box ein.',
+      'Öffne am Handy die Einstellungen und dort Bluetooth.',
+      'Suche in der Liste den Namen deiner Box und tippe ihn an.',
+      'Das musst du nur einmal machen. Danach verbindet sich das Handy von allein, sobald die Box an ist.',
+    ],
+    // Putting a box into pairing mode differs per box and sometimes needs a
+    // button held down for several seconds — worth an adult the first time.
+    askParent: true,
   },
   {
     id: 'anmelden',

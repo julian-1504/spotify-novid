@@ -217,6 +217,16 @@ const GLYPHS = {
     </>
   ),
 
+  // A phone with sound coming out of it, for "play on this phone". The waves
+  // are what stop it reading as a plain settings/device icon at picker size.
+  phone: (
+    <>
+      <rect x="4.2" y="2.4" width="10.4" height="19.2" rx="2.2" />
+      <path d="M9 18.6h.8" strokeWidth={2.1} />
+      <path d="M17.6 9.6a4.6 4.6 0 0 1 0 4.8M20.4 7.2a8.2 8.2 0 0 1 0 9.6" />
+    </>
+  ),
+
   check: <path d="m4.5 12.5 5 5 10-11" strokeWidth={2.4} />,
 
   close: <path d="M6.2 6.2 17.8 17.8M17.8 6.2 6.2 17.8" strokeWidth={2.4} />,

@@ -3,7 +3,7 @@ import { NavLink, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
 import { Artwork } from './components/Artwork';
 import { setAuthExpiredHandler } from './api/client';
-import { PlayerProvider } from './player/PlayerProvider';
+import { PlayerProvider, usePlayer } from './player/PlayerProvider';
 import { NowPlayingBar } from './components/NowPlayingBar';
 import { Icon } from './components/Icon';
 import { Album } from './screens/Album';
@@ -17,6 +17,35 @@ import { Playlist } from './screens/Playlist';
 import { Search } from './screens/Search';
 import { Show } from './screens/Show';
 import { t } from './strings';
+
+/**
+ * The visible half of the runtime no-video guard.
+ *
+ * It covers everything rather than showing a dismissible banner, and there is
+ * no way past it: this only appears when something the app never compiled has
+ * put a video surface or a foreign frame in the page, which is precisely the
+ * situation where carrying on quietly is the wrong answer. Playback is already
+ * stopped by the time this renders.
+ */
+function GuardGate() {
+  const { guardViolation } = usePlayer();
+  if (!guardViolation) return null;
+
+  return (
+    <div className="guard-gate" role="alertdialog" aria-label={t.guard.title}>
+      <Icon name="alert" size={44} />
+      <h1>{t.guard.title}</h1>
+      <p>{t.guard.body}</p>
+      <p>
+        <strong>{t.guard.askParent}</strong>
+      </p>
+      {/* For the grown-up who gets called over, not for the kid. */}
+      <code>
+        {guardViolation.what}: {guardViolation.detail}
+      </code>
+    </div>
+  );
+}
 
 export function App() {
   const { status, markExpired, activeAccount } = useAuth();
@@ -52,6 +81,7 @@ export function App() {
 
   return (
     <PlayerProvider>
+      <GuardGate />
       <div className="app">
         <main className="scroll">
           <Routes>

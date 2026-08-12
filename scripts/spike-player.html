@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NoVid — Web Playback SDK spike</title>
+    <style>
+      body {
+        font: 16px/1.5 system-ui, sans-serif;
+        margin: 0;
+        padding: 1.5rem;
+        background: #0f1115;
+        color: #e7e9ee;
+      }
+      button {
+        font: inherit;
+        padding: 0.9rem 1.4rem;
+        border: 0;
+        border-radius: 10px;
+        background: #1db954;
+        color: #06210f;
+        font-weight: 700;
+      }
+      button[disabled] { opacity: 0.5; }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #171a21;
+        padding: 1rem;
+        border-radius: 10px;
+      }
+      .ok { color: #55d98d; }
+      .bad { color: #ff6b6b; }
+    </style>
+  </head>
+  <body>
+    <h1>Web Playback SDK spike</h1>
+    <p>
+      Tap once to start. The tap matters: on iOS the SDK will not produce audio
+      unless playback is activated from a real user gesture.
+    </p>
+    <p><button id="go">Test starten</button></p>
+    <pre id="log">Ready.</pre>
+
+    <script>
+      const logEl = document.getElementById('log');
+      const lines = [];
+      const report = { steps: [], dom: null, mediaSession: null, events: [] };
+
+      function log(msg, cls) {
+        lines.push(cls ? `[${cls}] ${msg}` : msg);
+        logEl.innerHTML = lines
+          .map((l) => {
+            if (l.startsWith('[ok] ')) return `<span class="ok">${l.slice(5)}</span>`;
+            if (l.startsWith('[bad] ')) return `<span class="bad">${l.slice(6)}</span>`;
+            return l;
+          })
+          .join('\n');
+      }
+
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      let token = null;
+      async function api(path, init) {
+        const res = await fetch('https://api.spotify.com/v1' + path, {
+          ...init,
+          headers: {
+            Authorization: 'Bearer ' + token,
+            'Content-Type': 'application/json',
+            ...(init && init.headers),
+          },
+        });
+        const text = await res.text();
+        return {
+          status: res.status,
+          ok: res.ok,
+          body: text ? JSON.parse(text) : null,
+        };
+      }
+
+      /** Loads the SDK, rejecting rather than hanging if it never arrives. */
+      function loadSdk() {
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error('sdk.scdn.co did not load within 15s')),
+            15000,
+          );
+          window.onSpotifyWebPlaybackSDKReady = () => {
+            clearTimeout(timer);
+            resolve();
+          };
+          const s = document.createElement('script');
+          s.src = 'https://sdk.scdn.co/spotify-player.js';
+          s.onerror = () => {
+            clearTimeout(timer);
+            reject(new Error('sdk.scdn.co failed to load'));
+          };
+          document.head.appendChild(s);
+        });
+      }
+
+      /**
+       * What did the SDK actually put in our document? This is the question the
+       * static check in scripts/check-no-video.mjs structurally cannot answer,
+       * because the SDK is fetched at runtime and appears in neither src/ nor
+       * dist/. Whatever this reports is what the runtime guard has to tolerate.
+       */
+      function scanDom() {
+        const frames = [...document.querySelectorAll('iframe')].map((f) => ({
+          src: f.src || '(empty)',
+          allow: f.getAttribute('allow') || '(none)',
+          hidden: f.offsetParent === null,
+        }));
+        const videos = [...document.querySelectorAll('video')].map((v) => ({
+          src: v.currentSrc || v.src || '(empty)',
+          inDom: true,
+        }));
+        const audios = document.querySelectorAll('audio').length;
+        return { frames, videos, audioElements: audios };
+      }
+
+      async function nowPlaying() {
+        const r = await api('/me/player?additional_types=track,episode');
+        if (!r.body) return { status: r.status, empty: true };
+        return {
+          status: r.status,
+          is_playing: r.body.is_playing,
+          device: r.body.device && {
+            id: r.body.device.id,
+            name: r.body.device.name,
+            type: r.body.device.type,
+          },
+          item: r.body.item && {
+            type: r.body.item.type,
+            name: r.body.item.name,
+          },
+          progress_ms: r.body.progress_ms,
+        };
+      }
+
+      async function playAndCheck(label, uri, deviceId) {
+        log(`\n--- ${label} ---`);
+        const res = await api('/me/player/play?device_id=' + deviceId, {
+          method: 'PUT',
+          body: JSON.stringify({ uris: [uri] }),
+        });
+        log(`PUT /me/player/play -> ${res.status} ${res.ok ? '' : JSON.stringify(res.body)}`);
+
+        // Give the SDK a moment to actually start decoding before believing it.
+        await wait(4000);
+
+        const state = await nowPlaying();
+        let sdkState = null;
+        try {
+          const s = await window.__player.getCurrentState();
+          sdkState = s && {
+            paused: s.paused,
+            position: s.position,
+            duration: s.duration,
+            track: s.track_window &&
+              s.track_window.current_track && {
+                type: s.track_window.current_track.type,
+                name: s.track_window.current_track.name,
+              },
+          };
+        } catch (err) {
+          sdkState = { error: String(err) };
+        }
+
+        // The SDK's own state is the honest signal. /me/player can report
+        // is_playing on a device that accepted the command and stayed silent —
+        // exactly the Echo failure this whole spike exists to route around.
+        const playing = !!(sdkState && sdkState.paused === false);
+        log(
+          `SDK state: ${JSON.stringify(sdkState)}`,
+          playing ? 'ok' : 'bad',
+        );
+        log(`/me/player: ${JSON.stringify(state)}`);
+        log(
+          playing
+            ? `${label}: PLAYING — confirm by ear.`
+            : `${label}: NOT playing according to the SDK.`,
+          playing ? 'ok' : 'bad',
+        );
+
+        report.steps.push({
+          label,
+          uri,
+          httpStatus: res.status,
+          httpBody: res.ok ? null : res.body,
+          sdkState,
+          webApiState: state,
+          verdict: playing ? 'playing' : 'not-playing',
+        });
+        return playing;
+      }
+
+      async function run() {
+        document.getElementById('go').disabled = true;
+        try {
+          const cfg = await (await fetch('/token')).json();
+          token = cfg.accessToken;
+          report.trackUri = cfg.trackUri;
+          report.episodeUri = cfg.episodeUri;
+          log('Token received.');
+
+          log('Loading sdk.scdn.co …');
+          await loadSdk();
+          log('SDK script loaded.', 'ok');
+
+          const player = new window.Spotify.Player({
+            name: 'NoVid Spike',
+            getOAuthToken: (cb) => cb(token),
+            volume: 0.5,
+          });
+          window.__player = player;
+
+          for (const ev of [
+            'initialization_error',
+            'authentication_error',
+            'account_error',
+            'playback_error',
+            'autoplay_failed',
+          ]) {
+            player.addListener(ev, (e) => {
+              const msg = e && e.message ? e.message : JSON.stringify(e);
+              log(`${ev}: ${msg}`, 'bad');
+              report.events.push({ event: ev, message: msg });
+            });
+          }
+          player.addListener('not_ready', ({ device_id }) => {
+            log(`not_ready: ${device_id}`, 'bad');
+            report.events.push({ event: 'not_ready', device_id });
+          });
+
+          const deviceId = await new Promise((resolve, reject) => {
+            const timer = setTimeout(
+              () => reject(new Error('no ready event within 20s')),
+              20000,
+            );
+            player.addListener('ready', ({ device_id }) => {
+              clearTimeout(timer);
+              resolve(device_id);
+            });
+            player.connect();
+          });
+
+          log(`ready: device_id=${deviceId}`, 'ok');
+          report.deviceId = deviceId;
+
+          // Documented mobile requirement: without this, iOS produces no audio
+          // even though every command succeeds.
+          if (typeof player.activateElement === 'function') {
+            try {
+              await player.activateElement();
+              log('activateElement() ok.', 'ok');
+              report.activateElement = 'ok';
+            } catch (err) {
+              log('activateElement() failed: ' + err, 'bad');
+              report.activateElement = String(err);
+            }
+          } else {
+            report.activateElement = 'not available';
+          }
+
+          // How does this device present itself to the rest of the app? The
+          // allowlist in src/config.ts turns on this exact string.
+          const devices = await api('/me/player/devices');
+          const self = (devices.body?.devices ?? []).find((d) => d.id === deviceId);
+          log(`\nThis device in /me/player/devices: ${JSON.stringify(self)}`);
+          report.selfDevice = self ?? null;
+
+          await playAndCheck('MUSIC (track)', report.trackUri, deviceId);
+          await playAndCheck('PODCAST (episode)', report.episodeUri, deviceId);
+
+          report.dom = scanDom();
+          log(`\nDOM after playback: ${JSON.stringify(report.dom, null, 2)}`);
+
+          report.mediaSession = {
+            available: 'mediaSession' in navigator,
+            metadataSetBySdk:
+              'mediaSession' in navigator && !!navigator.mediaSession.metadata,
+            playbackState:
+              'mediaSession' in navigator ? navigator.mediaSession.playbackState : null,
+          };
+          log(`mediaSession: ${JSON.stringify(report.mediaSession)}`);
+
+          report.userAgent = navigator.userAgent;
+          report.secureContext = window.isSecureContext;
+        } catch (err) {
+          log('FATAL: ' + (err && err.message ? err.message : err), 'bad');
+          report.fatal = String(err && err.message ? err.message : err);
+        }
+
+        await fetch('/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(report),
+        });
+        log('\nReport sent — back to the terminal.');
+      }
+
+      document.getElementById('go').addEventListener('click', run);
+    </script>
+  </body>
+</html>

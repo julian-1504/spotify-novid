@@ -14,8 +14,14 @@ function subtitleFor(item: Track | Episode | null | undefined): string {
 }
 
 export function NowPlayingBar() {
-  const { state, selectedDevice, unavailableDeviceName, devices, command } =
-    usePlayer();
+  const {
+    state,
+    selectedDevice,
+    unavailableDeviceName,
+    devices,
+    command,
+    selfSelected,
+  } = usePlayer();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [scrub, setScrub] = useState<number | null>(null);
 
@@ -50,24 +56,28 @@ export function NowPlayingBar() {
           <span className="np-device-label">
             <Icon
               name={
-                noSpeaker && (devices.length === 0 || unavailableDeviceName)
-                  ? 'speaker-off'
-                  : 'speaker'
+                selfSelected
+                  ? 'phone'
+                  : noSpeaker && (devices.length === 0 || unavailableDeviceName)
+                    ? 'speaker-off'
+                    : 'speaker'
               }
               size={18}
             />
             {/*
-              Three different situations, and a kid needs to tell them apart:
-              the chosen box is switched off, no box has been chosen yet, or
-              none was found at all.
+              Four different situations, and a kid needs to tell them apart:
+              it is playing on this phone, the chosen box is switched off, no
+              box has been chosen yet, or none was found at all.
             */}
-            {selectedDevice
-              ? selectedDevice.name
-              : unavailableDeviceName
-                ? t.player.deviceOff(unavailableDeviceName)
-                : devices.length > 0
-                  ? t.player.tapToPick
-                  : t.player.noSpeakerFound}
+            {selfSelected
+              ? t.player.thisPhone
+              : selectedDevice
+                ? selectedDevice.name
+                : unavailableDeviceName
+                  ? t.player.deviceOff(unavailableDeviceName)
+                  : devices.length > 0
+                    ? t.player.tapToPick
+                    : t.player.noSpeakerFound}
           </span>
           <Icon name="chevron-down" size={18} />
         </button>
@@ -82,7 +92,14 @@ export function NowPlayingBar() {
               {item?.name ?? t.player.nothingPlaying}
             </div>
             <div className="np-sub">
-              {subtitleFor(item) || (noSpeaker ? t.player.pickSpeaker : '')}
+              {/*
+                While the phone is the player the sound comes out of the phone,
+                not the box. Saying so beats a kid concluding the box is broken
+                — the pairing is a one-off they may never have been told about.
+              */}
+              {selfSelected && !item
+                ? t.player.phoneBluetoothHint
+                : subtitleFor(item) || (noSpeaker ? t.player.pickSpeaker : '')}
             </div>
           </div>
 

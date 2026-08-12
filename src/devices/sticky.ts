@@ -18,6 +18,22 @@
  */
 export const FORGET_AFTER_MISSES = 3;
 
+/**
+ * Stands in for "this phone" in stored form.
+ *
+ * The Web Playback SDK mints a new device id every session, so storing the id
+ * it happened to hand out would remember something that can never appear again:
+ * the miss counter below would run to FORGET_AFTER_MISSES about thirty seconds
+ * after every launch, and a kid would find their choice quietly dropped each
+ * time. The sentinel is resolved to the live id once the SDK is ready.
+ *
+ * Not a valid Spotify device id, so it can never collide with a real box.
+ */
+export const SELF_DEVICE_SENTINEL = '@self';
+
+export const isSelfSentinel = (id: string | null | undefined): boolean =>
+  id === SELF_DEVICE_SENTINEL;
+
 /** The chosen speaker. The name is kept so the UI can name a box that is off. */
 export interface RememberedDevice {
   id: string;
@@ -48,6 +64,10 @@ export function trackAbsence(streak: number, present: boolean): AbsenceResult {
 /**
  * Reads the stored choice. Older builds wrote the bare device id, so a value
  * that is not JSON is treated as one rather than throwing the choice away.
+ *
+ * The self sentinel travels through here unchanged; resolving it to a live SDK
+ * device id is PlayerProvider's job, because only it knows whether the SDK has
+ * booted yet.
  */
 export function parseRemembered(raw: string | null): RememberedDevice | null {
   if (!raw) return null;

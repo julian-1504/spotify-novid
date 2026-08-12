@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "spike": "node scripts/spike.mjs",
+    "spike:player": "node scripts/spike-player.mjs",
     "check:novideo": "node scripts/check-no-video.mjs"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "happy-dom": "^20.11.2",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",

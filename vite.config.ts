@@ -1,4 +1,6 @@
-import { defineConfig } from 'vite';
+// From vitest rather than vite, so the `test` block below type-checks. It is
+// the same defineConfig with the test options added.
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -77,5 +79,21 @@ export default defineConfig({
     // loopback form, so develop on that host to match what is registered.
     host: '127.0.0.1',
     port: 5173,
+  },
+  test: {
+    environmentOptions: {
+      happyDOM: {
+        // The DOM guard's tests insert iframes on purpose. Without this,
+        // happy-dom tries to actually fetch each one — turning a unit test
+        // into twenty seconds of DNS timeouts against sdk.scdn.co and a
+        // deliberately unroutable example host, and making the suite fail
+        // differently depending on whether the machine is online.
+        settings: {
+          disableIframePageLoading: true,
+          disableJavaScriptFileLoading: true,
+          disableCSSFileLoading: true,
+        },
+      },
+    },
   },
 });

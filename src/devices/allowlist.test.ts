@@ -66,6 +66,62 @@ describe('device allowlist', () => {
   });
 });
 
+/**
+ * This phone, once the Web Playback SDK has registered it. It is the only way
+ * to play a podcast to a box that refuses mixed media over Connect, and it can
+ * only be admitted by id: the SDK reports type "Computer", which is blocked on
+ * purpose. These four cases are the whole safety argument for that exception.
+ */
+describe('the SDK device exception', () => {
+  const SELF = 'sdk-device-id-minted-this-session';
+
+  it('admits this phone despite it reporting a blocked type', () => {
+    expect(
+      isAllowedDevice(device({ id: SELF, type: 'Computer' }), SELF),
+    ).toBe(true);
+  });
+
+  it('still blocks every other computer', () => {
+    // The exception must not become "computers are fine now" — a desktop
+    // running Spotify may well be plugged into a TV.
+    expect(
+      rejectionReason(device({ id: 'someone-elses-laptop', type: 'computer' }), SELF),
+    ).toBe('blocked-type');
+  });
+
+  it('blocks a TV even if it somehow arrives as the self id', () => {
+    // Defence against the id being wrong rather than against a real attack:
+    // if this ever admitted a TV, the app's entire promise would be void.
+    expect(isAllowedDevice(device({ id: SELF, type: 'tv' }), SELF)).toBe(false);
+    expect(rejectionReason(device({ id: SELF, type: 'tv' }), SELF)).toBe(
+      'blocked-type',
+    );
+  });
+
+  it('changes nothing when this phone is not a playback device', () => {
+    expect(rejectionReason(device({ id: SELF, type: 'Computer' }))).toBe(
+      'blocked-type',
+    );
+    expect(rejectionReason(device({ id: SELF, type: 'Computer' }), null)).toBe(
+      'blocked-type',
+    );
+  });
+
+  it('carries the exception through partitionDevices', () => {
+    const { allowed, hidden } = partitionDevices(
+      [
+        device({ id: 'a', name: 'Kitchen', type: 'speaker' }),
+        device({ id: SELF, name: 'Musik-App', type: 'Computer' }),
+        device({ id: 'tv', name: 'Living room TV', type: 'tv' }),
+      ],
+      SELF,
+    );
+
+    expect(allowed.map((d) => d.name)).toEqual(['Kitchen', 'Musik-App']);
+    expect(hidden.map((h) => h.device.name)).toEqual(['Living room TV']);
+  });
+});
+
 describe('partitionDevices', () => {
   it('separates usable speakers from rejected devices', () => {
     const { allowed, hidden } = partitionDevices([

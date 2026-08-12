@@ -13,11 +13,17 @@ import { PLAYBACK_POLL_MS } from '../config';
 import * as player from '../api/player';
 import { partitionDevices, type PartitionedDevices } from '../devices/allowlist';
 import {
+  isSelfSentinel,
   parseRemembered,
+  SELF_DEVICE_SENTINEL,
   serialiseRemembered,
   trackAbsence,
   type RememberedDevice,
 } from '../devices/sticky';
+import * as webPlayback from './webPlayback';
+import { watchDocument, type Violation } from './domGuard';
+import { bindHandlers, publishMetadata } from './mediaSession';
+import { t } from '../strings';
 import type { Device, PlaybackState } from '../api/types';
 
 const SELECTED_DEVICE_KEY = 'novid.device';
@@ -46,6 +52,19 @@ interface PlayerValue {
   refresh: () => void;
   /** Runs a transport command then re-reads state so the UI catches up. */
   command: (fn: (deviceId: string | undefined) => Promise<unknown>) => Promise<void>;
+
+  /** Makes this phone a playback device and selects it. False if it failed. */
+  selectSelf: () => Promise<boolean>;
+  /** True while this phone is the chosen target. */
+  selfSelected: boolean;
+  selfBooting: boolean;
+  /** Why making this phone a player failed, in German, or null. */
+  selfError: string | null;
+  /**
+   * Set when the runtime no-video guard tripped. Non-recoverable on purpose:
+   * the app's central promise is no longer being kept.
+   */
+  guardViolation: Violation | null;
 }
 
 const PlayerContext = createContext<PlayerValue | null>(null);
@@ -58,6 +77,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Consecutive device polls that did not contain the remembered speaker.
   const missStreak = useRef(0);
 
+  // The live SDK device id, once this phone has registered itself as a player.
+  const [selfId, setSelfId] = useState<string | null>(null);
+  const [selfBooting, setSelfBooting] = useState(false);
+  const [selfError, setSelfError] = useState<string | null>(null);
+  const [guardViolation, setGuardViolation] = useState<Violation | null>(null);
+
+  /**
+   * The no-video guarantee's runtime half. The static check cannot see the Web
+   * Playback SDK — it is fetched from sdk.scdn.co and injects a cross-origin
+   * frame — so this watches the live document instead. Installed for the whole
+   * session, not just while the SDK is up, so anything that ever appears is
+   * caught.
+   */
+  useEffect(() => {
+    return watchDocument((violation) => {
+      setGuardViolation(violation);
+      // Stop the music as well as saying so: continuing to play through a
+      // surface we no longer vouch for is the one thing not to do.
+      webPlayback.teardown();
+      setSelfId(null);
+    });
+  }, []);
+
   const devicesQuery = useQuery({
     queryKey: ['devices'],
     queryFn: player.getDevices,
@@ -65,7 +107,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     refetchInterval: 10_000,
     // Partition rather than filter: the UI needs to tell "nothing is switched
     // on" apart from "something is there but it has a screen".
-    select: partitionDevices,
+    // `selfId` is passed so this phone survives the blocklist that its reported
+    // type ('Computer') would otherwise fail. Memoised on selfId so the
+    // partition is not recomputed on every render.
+    select: useCallback(
+      (list: Device[]) => partitionDevices(list, selfId),
+      [selfId],
+    ),
   });
 
   const stateQuery = useQuery({
@@ -79,25 +127,56 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const partitioned = devicesQuery.data ?? NO_DEVICES;
   const devices = partitioned.allowed;
 
+  /**
+   * What the remembered choice points at right now. The self sentinel is stored
+   * instead of a live SDK device id, because the SDK issues a new one every
+   * session — so it has to be resolved against whatever the SDK is using today.
+   */
+  const rememberedId = useMemo(() => {
+    if (!remembered) return null;
+    return isSelfSentinel(remembered.id) ? selfId : remembered.id;
+  }, [remembered, selfId]);
+
   const selectedDevice = useMemo(() => {
     if (remembered) {
       // An explicit choice is never second-guessed. If the box is not in the
       // list right now it is unavailable, not replaced — silently retargeting
       // to another speaker is how audio ends up in the wrong room.
-      return devices.find((d) => d.id === remembered.id);
+      return rememberedId ? devices.find((d) => d.id === rememberedId) : undefined;
     }
     // Nothing chosen yet, so follow whatever Spotify says is active — but only
     // if we are allowed to talk to it.
     return devices.find((d) => d.is_active);
-  }, [devices, remembered]);
+  }, [devices, remembered, rememberedId]);
 
+  /**
+   * The kid chose this phone. Deliberately based on the stored choice rather
+   * than on finding the device in the list: the list is polled every 10s, so
+   * after a reload there is a window where the SDK has registered but the
+   * cached list has not caught up. Deriving this from the list made the bar
+   * announce „Dieses Handy ist gerade aus" for several seconds after every
+   * launch.
+   */
+  const selfSelected = !!remembered && isSelfSentinel(remembered.id);
+
+  /** Where transport commands go, before the device list has caught up. */
+  const targetDeviceId = selectedDevice?.id ?? (selfSelected ? selfId : null);
+
+  // A phone is never "switched off" the way a box is, so it never gets that
+  // label — at worst its SDK is still starting.
   const unavailableDeviceName =
-    remembered && !selectedDevice ? (remembered.name || null) : null;
+    remembered && !selectedDevice && !selfSelected
+      ? (remembered.name || null)
+      : null;
 
   // Forget the remembered speaker only once it has been genuinely absent for a
   // while. A single missing poll is normal for a speaker that has gone idle.
   useEffect(() => {
     if (!remembered || devicesQuery.isLoading || !devicesQuery.isSuccess) return;
+    // This phone is never "absent" — at worst the SDK has not booted yet this
+    // session. Ageing the sentinel out would drop the choice about thirty
+    // seconds into every launch, which is what the sentinel exists to prevent.
+    if (isSelfSentinel(remembered.id)) return;
 
     const present = devices.some((d) => d.id === remembered.id);
     const { streak, forget } = trackAbsence(missStreak.current, present);
@@ -123,23 +202,100 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const selectDevice = useCallback(
     async (device: Device) => {
       if (!device.id) return;
-      const choice = { id: device.id, name: device.name };
+      // Store this phone as the sentinel, never as the id the SDK minted for
+      // this session — that id is gone by the next launch.
+      const storedId = device.id === selfId ? SELF_DEVICE_SENTINEL : device.id;
+      const choice = { id: storedId, name: device.name };
       localStorage.setItem(SELECTED_DEVICE_KEY, serialiseRemembered(choice));
       missStreak.current = 0;
       setRemembered(choice);
       await player.transferPlayback(device.id, false);
       refresh();
     },
-    [refresh],
+    [refresh, selfId],
   );
+
+  /**
+   * Makes this phone a playback device and points at it.
+   *
+   * Must be called straight from the tap: `activate()` unlocks audio output,
+   * and iOS ignores playback that was not started by a real user gesture no
+   * matter how many commands succeed afterwards.
+   */
+  const selectSelf = useCallback(async (): Promise<boolean> => {
+    setSelfError(null);
+    setSelfBooting(true);
+    try {
+      const id = await webPlayback.boot((err) => setSelfError(t.player.selfError(err.kind)));
+      await webPlayback.activate();
+      setSelfId(id);
+
+      const choice = { id: SELF_DEVICE_SENTINEL, name: t.player.thisPhone };
+      localStorage.setItem(SELECTED_DEVICE_KEY, serialiseRemembered(choice));
+      missStreak.current = 0;
+      setRemembered(choice);
+
+      await player.transferPlayback(id, false);
+      refresh();
+      return true;
+    } catch (err) {
+      const kind = err instanceof webPlayback.WebPlaybackError ? err.kind : 'unsupported';
+      setSelfError(t.player.selfError(kind));
+      return false;
+    } finally {
+      setSelfBooting(false);
+    }
+  }, [refresh]);
+
+  /**
+   * Bring the SDK back up when a previous session left this phone selected.
+   * Without this the stored sentinel would resolve to nothing and the bar would
+   * report no box until the kid picked it again by hand.
+   */
+  useEffect(() => {
+    if (!remembered || !isSelfSentinel(remembered.id) || selfId || selfBooting) return;
+    // No `activate()` here: there has been no tap, so iOS would refuse anyway.
+    // The device is registered; the first play tap unlocks the audio.
+    void webPlayback
+      .boot((err) => setSelfError(t.player.selfError(err.kind)))
+      .then((id) => {
+        setSelfId(id);
+        // Refetch at once: the cached device list predates this registration,
+        // and waiting for the 10s poll leaves the phone looking unavailable.
+        refresh();
+      })
+      .catch(() => {
+        // Silent: the kid did not ask for this right now, and the picker still
+        // offers the phone if they want it.
+      });
+  }, [remembered, selfId, selfBooting, refresh]);
 
   const command = useCallback(
     async (fn: (deviceId: string | undefined) => Promise<unknown>) => {
-      await fn(selectedDevice?.id ?? undefined);
+      await fn(targetDeviceId ?? undefined);
       // Spotify needs a moment before /me/player reflects the change.
       setTimeout(refresh, 350);
     },
-    [selectedDevice, refresh],
+    [targetDeviceId, refresh],
+  );
+
+  // Lock-screen controls. The SDK does not set these itself (confirmed by the
+  // spike), and with the phone in a pocket driving a Bluetooth box they are the
+  // only transport a kid can reach.
+  useEffect(() => {
+    publishMetadata(stateQuery.data);
+  }, [stateQuery.data]);
+
+  useEffect(
+    () =>
+      bindHandlers({
+        play: () => void command(player.resume),
+        pause: () => void command(player.pause),
+        next: () => void command(player.next),
+        previous: () => void command(player.previous),
+        seek: (ms) => void command((id) => player.seek(ms, id)),
+      }),
+    [command],
   );
 
   const value = useMemo<PlayerValue>(
@@ -153,6 +309,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       devicesLoading: devicesQuery.isLoading,
       refresh,
       command,
+      selectSelf,
+      selfSelected,
+      selfBooting,
+      selfError,
+      guardViolation,
     }),
     [
       stateQuery.data,
@@ -164,6 +325,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       devicesQuery.isLoading,
       refresh,
       command,
+      selectSelf,
+      selfSelected,
+      selfBooting,
+      selfError,
+      guardViolation,
     ],
   );
 

@@ -2,7 +2,7 @@
 /**
  * Step-0 feasibility check. Run this BEFORE trusting the app's config.
  *
- *   node scripts/spike.mjs <client-id>
+ *   node scripts/spike.mjs <client-id> [episode-id]
  *
  * It answers the three questions the design rests on:
  *
@@ -14,109 +14,34 @@
  *   3. Does playing a podcast episode by URI work? The API documents
  *      /me/player/play as track-only.
  *
- * Register http://127.0.0.1:8888/callback as a redirect URI in the dashboard
- * first. Loopback HTTP is permitted; `localhost` is explicitly banned.
+ * For the separate question of whether the *phone itself* can be a playback
+ * device — which is what gets podcasts onto a box that refuses them over
+ * Connect — see scripts/spike-player.mjs.
+ *
+ * The sign-in flow lives in ./spike-auth.mjs, shared with that script.
  */
 
-import { createServer } from 'node:http';
-import { createHash, randomBytes } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { api, signIn } from './spike-auth.mjs';
 
 const CLIENT_ID = process.argv[2] ?? process.env.VITE_SPOTIFY_CLIENT_ID;
-const REDIRECT_URI = 'http://127.0.0.1:8888/callback';
 const SCOPES = [
   'user-read-playback-state',
   'user-modify-playback-state',
   'user-read-currently-playing',
   'user-read-private',
-].join(' ');
+];
 
 // Keep in sync with src/config.ts.
 const ALLOWED_TYPES = ['speaker', 'castaudio', 'avr'];
 const BLOCKED_TYPES = ['tv', 'castvideo', 'stb', 'game_console', 'computer', 'smartphone'];
 
 if (!CLIENT_ID) {
-  console.error('Usage: node scripts/spike.mjs <client-id>');
+  console.error('Usage: node scripts/spike.mjs <client-id> [episode-id]');
   process.exit(1);
 }
 
-const base64url = (buf) =>
-  buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-const verifier = base64url(randomBytes(64));
-const challenge = base64url(createHash('sha256').update(verifier).digest());
-
-const authUrl =
-  'https://accounts.spotify.com/authorize?' +
-  new URLSearchParams({
-    client_id: CLIENT_ID,
-    response_type: 'code',
-    redirect_uri: REDIRECT_URI,
-    code_challenge_method: 'S256',
-    code_challenge: challenge,
-    scope: SCOPES,
-  });
-
-/** Waits for the OAuth redirect and returns the authorization code. */
-function waitForCode() {
-  return new Promise((resolve, reject) => {
-    const server = createServer((req, res) => {
-      const url = new URL(req.url, REDIRECT_URI);
-      if (url.pathname !== '/callback') {
-        res.writeHead(404).end();
-        return;
-      }
-      const code = url.searchParams.get('code');
-      const error = url.searchParams.get('error');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(
-        `<h1>${code ? 'Done — back to the terminal.' : 'Failed: ' + error}</h1>`,
-      );
-      server.close();
-      code ? resolve(code) : reject(new Error(error ?? 'no code returned'));
-    });
-    server.listen(8888, '127.0.0.1');
-  });
-}
-
-async function token(body) {
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: CLIENT_ID, ...body }),
-  });
-  if (!res.ok) throw new Error(`token: ${res.status} ${await res.text()}`);
-  return res.json();
-}
-
-async function api(accessToken, path, init = {}) {
-  const res = await fetch(`https://api.spotify.com/v1${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
-  });
-  const text = await res.text();
-  return { status: res.status, ok: res.ok, body: text ? JSON.parse(text) : null };
-}
-
-console.log('\nOpen this URL and sign in as the account you want to test:\n');
-console.log(authUrl + '\n');
-// Best effort; harmless if it fails.
-spawn('cmd', ['/c', 'start', '', authUrl], { detached: true, stdio: 'ignore' }).on(
-  'error',
-  () => {},
-);
-
-const code = await waitForCode();
-const { access_token: accessToken, refresh_token: refreshToken } = await token({
-  grant_type: 'authorization_code',
-  code,
-  redirect_uri: REDIRECT_URI,
-  code_verifier: verifier,
-});
+const { access_token: accessToken, server } = await signIn(CLIENT_ID, SCOPES);
+server.close();
 
 // --- 1. Premium check -------------------------------------------------------
 const me = await api(accessToken, '/me');
@@ -168,11 +93,13 @@ if (!episodeId) {
   });
   if (play.ok || play.status === 204) {
     console.log(`    ✓ uris:[spotify:episode:…] works — playing on ${target.name}.`);
+    console.log('      Note: a 204 only means the command was accepted. Confirm by ear —');
+    console.log('      a box that refuses mixed media reports success and stays silent.');
   } else {
     console.log(`    ✗ Failed (${play.status}):`, JSON.stringify(play.body));
     console.log('      Podcasts must fall back to playing the show from episode 1.');
   }
 }
 
-console.log('\nRefresh token (for further manual testing):\n' + refreshToken + '\n');
+console.log('');
 process.exit(0);
