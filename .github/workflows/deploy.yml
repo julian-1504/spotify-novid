@@ -1,0 +1,71 @@
+name: Deploy to Cloudflare Pages
+
+# Manual trigger only. There is deliberately no `push` or `pull_request`
+# trigger: a deploy replaces what the kids are actually listening on, so it is
+# always a decision someone makes, never a side effect of merging.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target
+        type: choice
+        default: preview
+        options:
+          - preview
+          - production
+
+concurrency:
+  group: deploy-${{ github.event.inputs.target }}
+  cancel-in-progress: false
+
+env:
+  # Must match the Cloudflare Pages project name. The project has to exist
+  # first — `wrangler pages deploy` cannot create one non-interactively.
+  PROJECT_NAME: spotify-novid
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # Vite inlines VITE_-prefixed variables at build time, so the client ID
+      # has to be present in *this* step's environment. Without it the build
+      # still succeeds and ships a bundle that fails at the first login
+      # attempt — a failure that never reproduces locally, where .env exists.
+      - run: npm run build
+        env:
+          VITE_SPOTIFY_CLIENT_ID: ${{ secrets.VITE_SPOTIFY_CLIENT_ID }}
+
+      # Scans dist/, so it must run after the build. This is the gate that
+      # keeps the app's core promise mechanical rather than aspirational.
+      - run: npm run check:novideo
+
+      # Direct Upload: the bundle is built here and pushed as static assets, so
+      # Cloudflare never runs a build of its own. The app has no Pages
+      # Functions (no functions/, no _worker.js) — the /* -> /index.html rule
+      # in public/_redirects is served by the static asset router — so this
+      # consumes no Workers request quota.
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Pages decides production vs preview by whether --branch matches the
+          # project's production branch.
+          command: >-
+            pages deploy dist
+            --project-name=${{ env.PROJECT_NAME }}
+            --branch=${{ github.event.inputs.target == 'production' && 'main' || github.ref_name }}

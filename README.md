@@ -136,6 +136,114 @@ equivalent rewrite yourself.
 Then add the production `/callback` URL to the dashboard. On the kid's phone,
 open the site in Chrome and use **Add to Home screen**.
 
+#### Deploying from GitHub Actions
+
+`.github/workflows/deploy.yml` does the above for Cloudflare Pages. It is
+**manual only** — Actions tab → *Deploy to Cloudflare Pages* → **Run workflow**,
+then pick `preview` or `production`. Nothing deploys on push or merge.
+
+The workflow lints, tests, builds and runs `check:novideo` against `dist/` before
+uploading, so a deploy cannot ship a bundle containing a video surface. It uses
+Direct Upload, meaning the bundle is built in Actions and pushed as static
+assets; Cloudflare never builds, and since the app has no Pages Functions it
+consumes no Workers request quota.
+
+##### One-time setup
+
+**Create the Pages project first.** It has to exist before the first workflow
+run: `wrangler pages deploy` cannot create a project non-interactively.
+
+Easiest from the CLI, which is immune to the dashboard reshuffling described
+below:
+
+```powershell
+$env:CLOUDFLARE_API_TOKEN = "<token>"
+$env:CLOUDFLARE_ACCOUNT_ID = "<account id>"
+npx wrangler pages project create spotify-novid --production-branch=main
+```
+
+`--production-branch=main` is load-bearing: the workflow passes `--branch=main`
+for a production deploy, and Pages only counts a deploy as production when that
+branch matches the project's production branch. Mismatch them and every run
+lands as a preview without saying so.
+
+In the dashboard the entry is under **Compute & AI → Workers & Pages** →
+**Create** → **Pages** → **Upload assets**. Cloudflare's own docs still say to
+"go to the Workers & Pages page" as a top-level item, which is stale — and the
+entry is account-scoped, so it disappears entirely while you are inside a
+domain's settings. <https://dash.cloudflare.com/?to=/:account/workers-and-pages>
+goes straight there.
+
+Either way choose Direct Upload rather than the Git integration: the Git
+integration would have Cloudflare build the app, which bypasses the gates above.
+
+**Create the API token.**
+
+1. Go to <https://dash.cloudflare.com/profile/api-tokens> (profile icon → **My
+   Profile** → **API Tokens**). To have the token survive you being removed from
+   the account, use **Manage Account → API Tokens** instead for an account-owned
+   token; the remaining steps are identical.
+2. **Create Token**.
+3. Scroll past the templates to **Create Custom Token** → **Get started**. None
+   of the templates fit, and all of them grant more than a deploy needs.
+4. Name it something recognisable later, e.g. `github-actions-spotify-novid`.
+   This name is all you get when auditing tokens in six months.
+5. Under **Permissions**, add exactly one row: **Account** → **Cloudflare Pages**
+   → **Edit**. The first dropdown must be *Account*, not *User* or *Zone*.
+   Nothing else is needed.
+6. Under **Account Resources**, select **Include** and your specific account
+   rather than leaving *All accounts*.
+7. Leave **Client IP Address Filtering** empty. GitHub-hosted runners come from a
+   large rotating IP range, so pinning IPs here breaks deploys unpredictably.
+8. Leave **TTL** empty unless you want the token to expire. An expiry is good
+   hygiene, but the failure mode is a deploy that suddenly 403s months later with
+   no obvious cause — set a calendar reminder if you use one.
+9. **Continue to summary**. It should read *"Cloudflare Pages: Edit — for account
+   \<yours\>"*. If it lists more than that, go back.
+10. **Create Token**, then copy the value immediately. It is shown once and can
+    only be regenerated, never retrieved.
+
+**Find the Account ID.** Simplest is to read it out of the dashboard URL — it is
+the hex string in `dash.cloudflare.com/<account-id>/...`. It is also shown with a
+copy button in the right-hand sidebar of the Workers & Pages page.
+
+**Add three repository secrets** under Settings → Secrets and variables → Actions:
+
+| Secret | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | from step 10 above |
+| `CLOUDFLARE_ACCOUNT_ID` | from the sidebar |
+| `VITE_SPOTIFY_CLIENT_ID` | your Spotify client ID |
+
+Or with the `gh` CLI, which prompts for each value:
+
+```bash
+gh secret set CLOUDFLARE_API_TOKEN
+gh secret set CLOUDFLARE_ACCOUNT_ID
+gh secret set VITE_SPOTIFY_CLIENT_ID
+```
+
+The client ID is a secret here only for tidiness — it is public either way, as
+explained above; storing it beside the Cloudflare credentials just keeps all
+three in one place.
+
+To sanity-check the token without deploying:
+
+```bash
+curl -s -H "Authorization: Bearer <token>" \
+  https://api.cloudflare.com/client/v4/user/tokens/verify
+```
+
+`"status": "active"` means the token is live. That only proves it is valid, not
+that it carries the Pages permission — the real confirmation is the first
+`preview` run, which fails at the wrangler step with a 403 if the permission is
+wrong.
+
+A `preview` run deploys under `https://<branch>.<project>.pages.dev`. Sign-in
+will not work there unless that exact `/callback` URL is also registered in the
+Spotify dashboard, since Spotify rejects unregistered redirect URIs. Either
+register the branch alias, or treat previews as signed-out UI checks.
+
 Note the site will be on a public URL. That is not a security problem — a
 stranger only ever reaches a login screen, and Development Mode admits only your
 five allowlisted accounts — but anyone with the link can see that screen. Put it
