@@ -62,6 +62,30 @@ export const getPlaylistItems = (id: string, offset = 0) =>
     query: { limit: 50, offset, additional_types: 'track,episode' },
   });
 
+/**
+ * The number of entries in a playlist, when the response already carries it.
+ *
+ * `undefined` means "this response did not say", which is a different thing
+ * from an empty playlist and has to stay distinguishable from it: `/me/playlists`
+ * summaries come back without a count, and treating that as zero is what made
+ * every playlist in the library claim it held no songs.
+ */
+export const playlistItemCount = (playlist: Playlist): number | undefined =>
+  playlist.items?.total ?? playlist.tracks?.total;
+
+/**
+ * Ask for the count directly, for a summary that arrived without one.
+ *
+ * One item is requested because only the page total is wanted; the items
+ * themselves are the detail screen's business.
+ */
+export async function fetchPlaylistItemCount(id: string): Promise<number> {
+  const page = await apiRequest<Paged<PlaylistItem>>(`/playlists/${id}/items`, {
+    query: { limit: 1, additional_types: 'track,episode' },
+  });
+  return page.total;
+}
+
 export const getShow = (id: string) => apiRequest<Show>(`/shows/${id}`);
 
 export const getShowEpisodes = (id: string, offset = 0) =>

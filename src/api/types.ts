@@ -81,7 +81,20 @@ export interface Playlist {
   images: Image[];
   description: string;
   owner: { id: string; display_name?: string };
-  tracks: { total: number };
+  /**
+   * How many entries the playlist holds — under whichever name the response
+   * happens to use. February 2026 renamed the contents of a playlist from
+   * "tracks" to "items" (that is why the endpoint is `/playlists/{id}/items`),
+   * and the summary object that carries the count moved with it. Which of the
+   * two a given response carries is not something a screen should have to know,
+   * so both are optional and both are read through `playlistItemCount`.
+   *
+   * Either may also be absent altogether: a count is a fact to look up, never
+   * one to assume, because assuming means telling a kid a full playlist has no
+   * songs in it.
+   */
+  items?: { total: number };
+  tracks?: { total: number };
 }
 
 export interface Paged<T> {
