@@ -22,6 +22,11 @@ env:
   # Must match the Cloudflare Pages project name. The project has to exist
   # first — `wrangler pages deploy` cannot create one non-interactively.
   PROJECT_NAME: spotify-novid
+  # Must match the Pages project's production branch (set at creation with
+  # `wrangler pages project create --production-branch=main`). Pages classifies
+  # a deploy as production purely by --branch matching this value, so the whole
+  # preview/production distinction hinges on it.
+  PRODUCTION_BRANCH: main
 
 jobs:
   deploy:
@@ -54,6 +59,40 @@ jobs:
       # keeps the app's core promise mechanical rather than aspirational.
       - run: npm run check:novideo
 
+      # Resolved in its own step, and printed, because the branch name is the
+      # only thing deciding whether this lands on the live site. An earlier
+      # inline expression fell back to the current ref for previews, which on a
+      # single-branch repo meant every "preview" was a production deploy — with
+      # nothing in the log to say so.
+      #
+      # TARGET/REF_NAME arrive via env rather than being interpolated into the
+      # script, since branch names may carry shell metacharacters.
+      - id: target
+        env:
+          TARGET: ${{ github.event.inputs.target }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$TARGET" = "production" ]; then
+            if [ "$REF_NAME" != "$PRODUCTION_BRANCH" ]; then
+              echo "::error::Refusing to deploy to production from '$REF_NAME'. Production ships what is on $PRODUCTION_BRANCH."
+              exit 1
+            fi
+            branch="$PRODUCTION_BRANCH"
+          else
+            # Prefixed so a preview can never collide with the production
+            # branch, whatever the current ref is called.
+            branch="preview-$REF_NAME"
+            # Unreachable given the prefix above. Kept so the invariant is
+            # mechanical: change the scheme and this fails the run rather than
+            # quietly deploying to production.
+            if [ "$branch" = "$PRODUCTION_BRANCH" ]; then
+              echo "::error::Preview resolved to the production branch '$branch'."
+              exit 1
+            fi
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "Target '$TARGET' from '$REF_NAME' -> deploying as branch '$branch'"
+
       # Direct Upload: the bundle is built here and pushed as static assets, so
       # Cloudflare never runs a build of its own. The app has no Pages
       # Functions (no functions/, no _worker.js) — the /* -> /index.html rule
@@ -63,9 +102,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Pages decides production vs preview by whether --branch matches the
-          # project's production branch.
+          # Production iff this matches PRODUCTION_BRANCH; see the step above.
           command: >-
             pages deploy dist
             --project-name=${{ env.PROJECT_NAME }}
-            --branch=${{ github.event.inputs.target == 'production' && 'main' || github.ref_name }}
+            --branch=${{ steps.target.outputs.branch }}

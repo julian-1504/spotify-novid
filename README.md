@@ -165,7 +165,11 @@ npx wrangler pages project create spotify-novid --production-branch=main
 `--production-branch=main` is load-bearing: the workflow passes `--branch=main`
 for a production deploy, and Pages only counts a deploy as production when that
 branch matches the project's production branch. Mismatch them and every run
-lands as a preview without saying so.
+lands as a preview without saying so. If you use a different name, change
+`PRODUCTION_BRANCH` in the workflow to match.
+
+The workflow also refuses a `production` run from any branch other than that one,
+so the live site only ever ships what is on `main`.
 
 In the dashboard the entry is under **Compute & AI → Workers & Pages** →
 **Create** → **Pages** → **Upload assets**. Cloudflare's own docs still say to
@@ -239,10 +243,17 @@ that it carries the Pages permission — the real confirmation is the first
 `preview` run, which fails at the wrangler step with a 403 if the permission is
 wrong.
 
-A `preview` run deploys under `https://<branch>.<project>.pages.dev`. Sign-in
-will not work there unless that exact `/callback` URL is also registered in the
-Spotify dashboard, since Spotify rejects unregistered redirect URIs. Either
-register the branch alias, or treat previews as signed-out UI checks.
+A `preview` run deploys as `preview-<branch>`, so from `main` it lands on
+<https://preview-main.spotify-novid.pages.dev>. The prefix is what keeps a
+preview from ever matching the production branch — without it, a preview run on
+a single-branch repo deploys straight to the live site.
+
+Sign-in will not work on a preview unless that exact `/callback` URL is also
+registered in the Spotify dashboard, since Spotify rejects unregistered redirect
+URIs. Each deploy additionally gets a random per-deployment URL, which cannot be
+registered in advance; only the `preview-<branch>` alias is stable enough. So
+either register `https://preview-main.spotify-novid.pages.dev/callback`, or treat
+previews as signed-out UI checks.
 
 Note the site will be on a public URL. That is not a security problem — a
 stranger only ever reaches a login screen, and Development Mode admits only your
