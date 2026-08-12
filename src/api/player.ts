@@ -1,7 +1,12 @@
 /** Spotify Connect transport control. These endpoints survived the Feb 2026 cull. */
 
 import { apiRequest } from './client';
-import type { Device, PlaybackState } from './types';
+import type {
+  CursorPaged,
+  Device,
+  PlaybackState,
+  RecentlyPlayedItem,
+} from './types';
 
 export function getPlaybackState(): Promise<PlaybackState | undefined> {
   // additional_types is required or episodes come back mislabelled as tracks
@@ -10,6 +15,22 @@ export function getPlaybackState(): Promise<PlaybackState | undefined> {
     query: { additional_types: 'track,episode' },
   });
 }
+
+/**
+ * Spotify's own listening history, used once per account to give the home
+ * screen something to show before this app has recorded anything itself.
+ *
+ * Tracks only, so a fresh install starts music-only until a podcast is played.
+ * That is the endpoint, not a bug to fix here.
+ *
+ * Needs `user-read-recently-played`, which grants older than that scope do not
+ * carry — every caller has to treat a 403 as "no history", not as an error.
+ */
+export const getRecentlyPlayed = (limit = 50) =>
+  apiRequest<CursorPaged<RecentlyPlayedItem> | undefined>(
+    '/me/player/recently-played',
+    { query: { limit } },
+  );
 
 export async function getDevices(): Promise<Device[]> {
   const res = await apiRequest<{ devices: Device[] }>('/me/player/devices');

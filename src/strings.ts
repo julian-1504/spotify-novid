@@ -19,8 +19,11 @@ export const t = {
   },
 
   nav: {
+    // „Start", not „Home": every other label here is German, and one English
+    // word in the bar is the one a kid would stumble over. „Startseite" does
+    // not fit under an icon across four tabs.
+    home: 'Start',
     search: 'Suchen',
-    library: 'Deine Sachen',
     help: 'Hilfe',
     account: 'Konto',
   },
@@ -82,6 +85,10 @@ export const t = {
       playlist: 'Playlists',
       show: 'Podcasts',
     },
+  },
+
+  home: {
+    recent: 'Zuletzt gehört',
   },
 
   library: {

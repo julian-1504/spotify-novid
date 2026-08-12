@@ -32,6 +32,14 @@ export function redirectUri(): string {
  *
  * The exact set is the one `npm run spike:player` proved works. Trimming it
  * needs a re-run, not a guess.
+ *
+ * Adding one, on the other hand, is not retroactive and invalidates nothing on
+ * its own: a stored refresh token keeps the scopes it was granted, and nothing
+ * in this app ever compares a grant against this list. An existing account
+ * therefore keeps working and merely gets a 403 from whatever endpoint needs
+ * the new scope, until somebody happens to re-authorize anyway. That is why
+ * `user-read-recently-played` could be added without sending five kids to find
+ * a grown-up — the one thing it powers degrades to nothing.
  */
 export const SCOPES = [
   'streaming',
@@ -44,6 +52,7 @@ export const SCOPES = [
   'playlist-read-collaborative',
   'user-library-read',
   'user-read-playback-position',
+  'user-read-recently-played',
 ] as const;
 
 /**

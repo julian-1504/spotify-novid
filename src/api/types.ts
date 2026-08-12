@@ -105,6 +105,46 @@ export interface Paged<T> {
   next: string | null;
 }
 
+/**
+ * What the current item is being played *from* — the playlist, album or show a
+ * track arrived in.
+ *
+ * `type` is a bare string on purpose. Spotify documents four values but has
+ * added more before, and an unrecognised one has to fall through to the item
+ * rather than fail a check: recording nothing is fine, recording the wrong tile
+ * is not.
+ */
+export interface PlaybackContext {
+  uri: string;
+  type: string;
+  href?: string;
+}
+
+/**
+ * Cursor-paged, unlike everything else here: no total and no offset, because
+ * the history has no fixed length to count against.
+ */
+export interface CursorPaged<T> {
+  items: T[];
+  limit: number;
+  next: string | null;
+  cursors?: { after?: string; before?: string };
+}
+
+/**
+ * One entry of Spotify's own listening history.
+ *
+ * Tracks only — `/me/player/recently-played` has never returned episodes, and
+ * there is no `additional_types` to ask it for them. The podcast half of this
+ * app's history can only come from what it records itself.
+ */
+export interface RecentlyPlayedItem {
+  track: Track;
+  /** ISO 8601. */
+  played_at: string;
+  context: PlaybackContext | null;
+}
+
 export interface PlaylistItem {
   track: Track | Episode | null;
 }
@@ -128,6 +168,8 @@ export interface PlaybackState {
   repeat_state: 'off' | 'track' | 'context';
   item: Track | Episode | null;
   currently_playing_type: 'track' | 'episode' | 'ad' | 'unknown';
+  /** What the item is playing from. Null when Spotify reports no context. */
+  context: PlaybackContext | null;
 }
 
 /**

@@ -25,6 +25,15 @@ const CONE = (
 );
 
 const GLYPHS = {
+  // Roof and doorway. The doorway is what makes it read as a house rather than
+  // an arrow at the 25px the nav bar draws it at.
+  home: (
+    <>
+      <path d="M3.6 10.4 12 3.4l8.4 7v9.1a1.5 1.5 0 0 1-1.5 1.5H5.1a1.5 1.5 0 0 1-1.5-1.5Z" />
+      <path d="M9.6 21.1v-6.3h4.8v6.3" />
+    </>
+  ),
+
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="6.75" />

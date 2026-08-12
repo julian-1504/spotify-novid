@@ -1,10 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { getMyAlbums, getMyPlaylists, getMyShows } from '../api/catalog';
-import { AlbumTile, PlaylistTile, ShowTile } from '../components/Rows';
-import { Icon } from '../components/Icon';
+import { AlbumTile, PlaylistTile, ShowTile } from './Rows';
+import { Icon } from './Icon';
 import { t } from '../strings';
 
-export function Library() {
+/**
+ * Everything the kid has saved, in three shelves.
+ *
+ * Was its own screen until „Zuletzt gehört" moved in above it; a component
+ * rather than a screen now, because saved things and recently played things
+ * belong on one page — what you kept and what you actually listen to are the
+ * same question asked twice.
+ */
+export function YourStuff() {
   const playlists = useQuery({
     queryKey: ['me', 'playlists'],
     queryFn: () => getMyPlaylists(),
@@ -27,9 +35,7 @@ export function Library() {
     !shows.data?.items.length;
 
   return (
-    <div className="content">
-      <h1>{t.library.title}</h1>
-
+    <>
       {loading && <div className="spinner">{t.app.loading}</div>}
 
       {empty && (
@@ -73,6 +79,6 @@ export function Library() {
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }
