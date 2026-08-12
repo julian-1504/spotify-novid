@@ -36,7 +36,8 @@ import {
 } from './accounts';
 
 const TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token';
-const STORAGE_KEY = 'novid.auth.v2';
+/** Exported so the cross-tab listener watches the same key this module writes. */
+export const STORAGE_KEY = 'novid.auth.v2';
 /** The pre-multi-account key. Read once, migrated, then removed. */
 const LEGACY_KEY = 'novid.auth.v1';
 const LOCK_NAME = 'novid.token.refresh';

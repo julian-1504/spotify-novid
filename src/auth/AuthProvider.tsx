@@ -18,6 +18,7 @@ import {
   hasSession,
   readStore,
   requestPersistentStorage,
+  STORAGE_KEY,
   updateStore,
 } from './tokens';
 import {
@@ -55,6 +56,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  /**
+   * Drops everything cached for the account being left behind.
+   *
+   * The cancel is the part that is easy to miss. Clearing alone leaves requests
+   * that started under the previous account still in flight, carrying that
+   * account's bearer token, and no query key is account-scoped — it is not only
+   * `['me','playlists']`, `['show', id, 'episodes']` carries the per-user resume
+   * points that draw "weiter bei …" on an episode row. A late response would
+   * have nothing marking it as the wrong account's. Cancelled queries have their
+   * results discarded, so the race cannot land.
+   *
+   * Fired rather than awaited so the visible wipe still happens synchronously;
+   * cancelQueries marks the queries immediately and only its promise waits.
+   */
+  const dropAccountCache = useCallback(() => {
+    void queryClient.cancelQueries();
+    queryClient.clear();
+  }, [queryClient]);
 
   /** Pulls React state back in line with what is on disk. */
   const syncFromStore = useCallback(() => {
@@ -99,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // it rather than sitting on a UI that no longer matches what is stored.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== 'novid.auth.v2') return;
+      if (e.key !== STORAGE_KEY) return;
       const store = syncFromStore();
       if (store.accounts.length === 0) {
         setStatus('expired');
@@ -110,12 +130,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('expired');
         return;
       }
-      queryClient.clear();
+      dropAccountCache();
       setStatus('signed-in');
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [queryClient, syncFromStore]);
+  }, [dropAccountCache, syncFromStore]);
 
   /**
    * Switching is a local operation: the tokens for every account are already on
@@ -126,13 +146,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const switchAccount = useCallback(
     (id: string) => {
       const store = updateStore((s) => setActive(s, id));
-      queryClient.clear();
+      dropAccountCache();
       setAccounts(store.accounts);
       setActiveId(store.activeId);
       const next = store.accounts.find((a) => a.id === id);
       setStatus(next?.needsReauth ? 'expired' : 'signed-in');
     },
-    [queryClient],
+    [dropAccountCache],
   );
 
   /**
@@ -145,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       forgetInFlight(id);
       const store = updateStore((s) => removeFromStore(s, id));
-      queryClient.clear();
+      dropAccountCache();
       setAccounts(store.accounts);
       setActiveId(store.activeId);
 
@@ -157,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const next = store.accounts.find((a) => a.id === store.activeId);
       setStatus(next && !next.needsReauth ? 'signed-in' : 'expired');
     },
-    [queryClient],
+    [dropAccountCache],
   );
 
   /**
@@ -169,11 +189,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const store = current
       ? updateStore((s) => markNeedsReauth(s, current.id))
       : readStore();
-    queryClient.clear();
+    dropAccountCache();
     setAccounts(store.accounts);
     setActiveId(store.activeId);
     setStatus('expired');
-  }, [queryClient]);
+  }, [dropAccountCache]);
 
   const value = useMemo<AuthValue>(
     () => ({

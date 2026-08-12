@@ -63,12 +63,13 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Schiebe den Lautstärke-Regler nach rechts.',
       'Prüfe auch den Lautstärke-Knopf an der Box selbst.',
       'Hört gerade jemand anders auf derselben Box? Dann wartet ihr euch gegenseitig aus.',
-      // The case that is easy to miss: the app shows a title and a box name and
-      // looks completely normal, because the box has taken the command and
-      // reports back that it is playing — it just makes no sound. Only the box
-      // itself can be fixed from here.
-      'Steht oben ein Titel und trotzdem bleibt es still? Dann hängt die Box. Sag „Alexa, stopp“ und tippe nochmal auf Abspielen.',
-      'Hilft das nicht, zieh den Stecker der Box für 10 Sekunden raus und probiere es dann nochmal.',
+      // Podcasts are the odd one out: Spotify counts them as "mixed media", so
+      // some boxes take the command, report that they are playing and stay
+      // silent anyway. Nothing is broken and there is nothing to restart — the
+      // only thing that helps is a different box. Music is the giveaway,
+      // because music plays everywhere.
+      'Ein Podcast bleibt still, obwohl oben ein Titel steht? Podcasts gehen leider nicht auf jeder Box.',
+      'Probiere den Podcast auf einer anderen Box. Zum Testen kannst du auch ein Lied anmachen: Läuft das Lied, ist die Box in Ordnung.',
     ],
   },
   {

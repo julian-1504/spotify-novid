@@ -15,12 +15,19 @@ import { t } from '../strings';
 export function StatusPanel() {
   const online = useOnline();
   const { status, activeAccount } = useAuth();
-  const { devices, hiddenDevices, selectedDevice, refresh } = usePlayer();
+  const {
+    devices,
+    hiddenDevices,
+    selectedDevice,
+    unavailableDeviceName,
+    refresh,
+  } = usePlayer();
   const [refreshing, setRefreshing] = useState(false);
 
   const speaker = describeSpeaker({
     hasSelected: Boolean(selectedDevice),
     selectedName: selectedDevice?.name,
+    unavailableName: unavailableDeviceName,
     deviceCount: devices.length,
     hiddenCount: hiddenDevices.length,
   });
@@ -82,22 +89,31 @@ function StatusRow({
 }
 
 /**
- * "No speaker" has three distinct causes and a kid needs to tell them apart:
- * nothing found at all, something found but unusable (a TV), or a usable
- * speaker that simply has not been picked yet.
+ * "No speaker" has four distinct causes and a kid needs to tell them apart:
+ * the chosen box is switched off, nothing was found at all, something was found
+ * but is unusable (a TV), or a usable speaker simply has not been picked yet.
+ *
+ * The switched-off case has to be named the same way the now-playing bar names
+ * it — this panel is where a kid is sent when something is wrong, so the two
+ * screens disagreeing about the same state is worse here than anywhere.
  */
 function describeSpeaker({
   hasSelected,
   selectedName,
+  unavailableName,
   deviceCount,
   hiddenCount,
 }: {
   hasSelected: boolean;
   selectedName?: string;
+  unavailableName: string | null;
   deviceCount: number;
   hiddenCount: number;
 }): { ok: boolean; value: string } {
   if (hasSelected && selectedName) return { ok: true, value: selectedName };
+  if (unavailableName) {
+    return { ok: false, value: t.help.statusSpeakerOff(unavailableName) };
+  }
   if (deviceCount > 0) return { ok: false, value: t.help.statusSpeakerNotPicked };
   if (hiddenCount > 0) return { ok: false, value: t.help.statusSpeakerHidden };
   return { ok: false, value: t.help.statusSpeakerNone };

@@ -154,6 +154,9 @@ export const t = {
     statusSpeakerNone: 'keine gefunden',
     statusSpeakerHidden: 'gefunden, aber nicht benutzbar',
     statusSpeakerNotPicked: 'noch keine ausgewählt',
+    // Same wording as the now-playing bar uses, on purpose: one state, one
+    // sentence, wherever a kid happens to be looking.
+    statusSpeakerOff: (name: string) => `${name} ist gerade aus`,
     searchAgain: 'Nochmal suchen',
     searchingAgain: 'Sucht …',
     askParent: 'Das kann nur ein Erwachsener machen.',
