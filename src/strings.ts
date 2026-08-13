@@ -113,6 +113,9 @@ export const t = {
     episodes: 'Folgen',
     songs: (n: number) => (n === 1 ? '1 Lied' : `${n} Lieder`),
     episodeCount: (n: number) => (n === 1 ? '1 Folge' : `${n} Folgen`),
+    // Said out loud, because a playlist with nothing in it used to look
+    // exactly like the bug where the songs were there and simply not drawn.
+    emptyPlaylist: 'Diese Playlist ist noch leer.',
   },
 
   episode: {

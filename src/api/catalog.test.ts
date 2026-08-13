@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { SEARCH_TYPES, playlistItemCount, searchBucket } from './catalog';
+import {
+  SEARCH_TYPES,
+  playlistEntry,
+  playlistItemCount,
+  searchBucket,
+} from './catalog';
 import { nextPageOffset } from './paging';
 import { t } from '../strings';
 import type { Album, Artist, Paged, Playlist, Show, Track } from './types';
@@ -31,6 +36,36 @@ describe('playlistItemCount', () => {
   // calling that zero told kids their full playlists held no songs.
   it('reports a missing count as unknown, not as zero', () => {
     expect(playlistItemCount(playlist({}))).toBeUndefined();
+  });
+});
+
+/**
+ * The same rename one level down: an entry's track moved from `track` to
+ * `item`. Reading only the old name drew a playlist header over an empty list,
+ * because every entry looked like a song that had been removed.
+ */
+describe('playlistEntry', () => {
+  const song = { id: 't1', type: 'track' } as unknown as Track;
+  const other = { id: 't2', type: 'track' } as unknown as Track;
+
+  it('reads the February 2026 item', () => {
+    expect(playlistEntry({ item: song })).toBe(song);
+  });
+
+  it('still reads the older track', () => {
+    expect(playlistEntry({ track: song })).toBe(song);
+  });
+
+  it('prefers the current name when a response carries both', () => {
+    expect(playlistEntry({ item: song, track: other })).toBe(song);
+  });
+
+  // A removed song leaves an entry behind. It renders as nothing, but it still
+  // occupies its place — which is why this is null and not an error.
+  it('reports an entry with nothing in it as null', () => {
+    expect(playlistEntry({ item: null })).toBeNull();
+    expect(playlistEntry({ track: null })).toBeNull();
+    expect(playlistEntry({})).toBeNull();
   });
 });
 

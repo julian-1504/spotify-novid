@@ -146,7 +146,20 @@ export interface RecentlyPlayedItem {
 }
 
 export interface PlaylistItem {
-  track: Track | Episode | null;
+  /**
+   * The track or episode this entry holds — under whichever name the response
+   * uses. February 2026 renamed a playlist's contents from "tracks" to "items"
+   * and the wrapper around each entry moved with it, so `item` is what arrives
+   * and `track` is the older name the reference still lists as deprecated.
+   * Which of the two a given response carries is not something a screen should
+   * have to know, so both are optional and both are read through
+   * `playlistEntry`.
+   *
+   * Either may also be null: an entry whose song was removed keeps its place
+   * in the playlist, because a position is what starts the right song.
+   */
+  item?: Track | Episode | null;
+  track?: Track | Episode | null;
 }
 
 export interface Device {

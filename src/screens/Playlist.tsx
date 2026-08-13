@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   getPlaylist,
   getPlaylistItems,
+  playlistEntry,
   playlistItemCount,
 } from '../api/catalog';
 import { Artwork } from '../components/Artwork';
@@ -12,6 +13,7 @@ import { EpisodeRow, TrackRow } from '../components/Rows';
 import { usePagedList } from '../hooks/usePagedList';
 import { usePlayer } from '../player/PlayerProvider';
 import { play } from '../api/player';
+import { toFriendlyError } from '../errors';
 import { t } from '../strings';
 
 export function Playlist() {
@@ -35,6 +37,20 @@ export function Playlist() {
   // The page of items is the one count that is always right here, so it wins
   // over anything the playlist object did or did not say about its own length.
   const count = items.total ?? playlistItemCount(playlist.data);
+
+  /*
+   * The rows, resolved before anything is drawn, because „is this list empty"
+   * has to ask about what actually renders. An entry whose song was removed
+   * renders as nothing while still occupying its place — so counting entries
+   * would call a playlist of nothing but holes a full one.
+   *
+   * `index` is the position in the whole playlist, not in the page it arrived
+   * on — it is what tells Spotify which song to start at.
+   */
+  const rows = items.entries.flatMap(({ item, index }) => {
+    const entry = playlistEntry(item);
+    return entry ? [{ entry, index }] : [];
+  });
 
   return (
     <div className="content">
@@ -62,13 +78,15 @@ export function Playlist() {
         </div>
       </div>
 
+      {items.error && (
+        <div className="error">{toFriendlyError(items.error).message}</div>
+      )}
+
+      {items.isLoading && <div className="spinner">{t.app.loading}</div>}
+
       <div className="rows">
-        {items.entries.map(({ item, index }) => {
-          const entry = item.track;
-          if (!entry) return null;
-          // `index` is the position in the whole playlist, not in the page it
-          // arrived on — it is what tells Spotify which song to start at.
-          return entry.type === 'episode' ? (
+        {rows.map(({ entry, index }) =>
+          entry.type === 'episode' ? (
             <EpisodeRow key={`${entry.id}-${index}`} episode={entry} />
           ) : (
             <TrackRow
@@ -78,8 +96,8 @@ export function Playlist() {
               contextUri={playlist.data.uri}
               showArtwork
             />
-          );
-        })}
+          ),
+        )}
       </div>
 
       {items.isFetchingNextPage && (
@@ -89,6 +107,17 @@ export function Playlist() {
         onReach={items.fetchNextPage}
         active={items.hasNextPage && !items.isFetchingNextPage}
       />
+
+      {/* Not while the list is failing: „leer" and „hat nicht geklappt" are
+          different answers, and showing both says neither. */}
+      {!items.error && !items.isLoading && rows.length === 0 && (
+        <div className="empty">
+          <div className="big">
+            <Icon name="note" size={44} />
+          </div>
+          <p>{t.detail.emptyPlaylist}</p>
+        </div>
+      )}
     </div>
   );
 }
