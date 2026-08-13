@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { playlistEntry } from './catalog';
 import { flattenPages, nextPageOffset } from './paging';
 import type { Paged, PlaylistItem, Track } from './types';
 
@@ -52,20 +53,26 @@ describe('flattenPages', () => {
     expect(entries.map((e) => e.item.id)).toEqual(['a', 'b', 'c']);
   });
 
-  // A playlist entry can have no track — removed, or unavailable here. The row
+  // A playlist entry can hold nothing — removed, or unavailable here. The row
   // renders as nothing, but the song still sits at that position in the
   // playlist, so it has to keep its index or every song after it starts the
   // wrong one.
+  //
+  // Read through `playlistEntry` and built on `item` rather than on the
+  // renamed-away `track`: written from the type instead of from a response,
+  // this test passed no matter what the API sent, which is what made the wrong
+  // key look tested.
   it('lets an empty playlist entry keep its place', () => {
     const items: PlaylistItem[] = [
-      { track: track('a') },
-      { track: null },
-      { track: track('c') },
+      { item: track('a') },
+      { item: null },
+      { item: track('c') },
     ];
 
     const entries = flattenPages([page(items, 0, null)]);
 
     expect(entries.map((e) => e.index)).toEqual([0, 1, 2]);
-    expect(entries[2].item.track?.id).toBe('c');
+    expect(playlistEntry(entries[2].item)?.id).toBe('c');
+    expect(playlistEntry(entries[1].item)).toBeNull();
   });
 });

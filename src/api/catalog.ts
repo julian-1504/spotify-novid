@@ -142,6 +142,17 @@ export const playlistItemCount = (playlist: Playlist): number | undefined =>
   playlist.items?.total ?? playlist.tracks?.total;
 
 /**
+ * What one entry of a playlist holds, under whichever name the response used.
+ *
+ * The same February 2026 rename as above, one level down: `items.items.track`
+ * became `items.items.item`. Reading only the old name is what left the
+ * playlist screen drawing a header over an empty list — every entry looked
+ * like a removed song.
+ */
+export const playlistEntry = (entry: PlaylistItem): Track | Episode | null =>
+  entry.item ?? entry.track ?? null;
+
+/**
  * Ask for the count directly, for a summary that arrived without one.
  *
  * One item is requested because only the page total is wanted; the items
