@@ -19,6 +19,21 @@ dist-ssr
 .env.*
 !.env.example
 
+# Android wrapper build output. The wrapper scripts themselves — android/gradlew
+# and android/gradle/ — are committed on purpose: they are how the build pins
+# its own Gradle version on a machine that has none.
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+# Release signing. Neither the keystore nor its passwords belong in the repo,
+# and losing them is not recoverable: an APK signed with a different key
+# installs as a different app rather than as an update.
+android/keystore.properties
+*.jks
+*.keystore
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        The same #0f1115 the web app uses for theme_color, background_color and
+        the icon padding. Keeping them equal is what stops a pale flash between
+        the launcher and the first paint.
+    -->
+    <color name="background">#0f1115</color>
+</resources>

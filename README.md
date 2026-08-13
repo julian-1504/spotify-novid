@@ -1,8 +1,10 @@
-# Music & Podcasts — an audio-only Spotify client
+# Klangkiste — an audio-only Spotify client
 
-A small installable web app (PWA) that gives kids search, albums, artists,
-playlists and podcasts from Spotify, plays them on the speakers around the
-house, and offers no way whatsoever to watch video.
+A small web app that gives kids search, albums, artists, playlists and podcasts
+from Spotify, plays them on the speakers around the house, and offers no way
+whatsoever to watch video. It runs in any browser, and ships as an Android app
+(`android/`) for phones under Family Link — see *[The Android app](#the-android-app)*
+for why that wrapper is not optional there.
 
 It is a **Spotify Connect remote control**. It never handles an audio or video
 stream itself — it browses the catalogue and tells a speaker what to play.
@@ -193,7 +195,10 @@ a failure that does not reproduce in dev. On other hosts, configure the
 equivalent rewrite yourself.
 
 Then add the production `/callback` URL to the dashboard. On the kid's phone,
-open the site in Chrome and use **Add to Home screen**.
+install the Android app — *[The Android app](#the-android-app)*. **Add to Home
+screen** in Chrome also works and needs nothing further, but on a phone managed
+by Family Link it produces an icon that Chrome's own screen-time limit governs;
+that is the whole reason the wrapper exists.
 
 #### Deploying from GitHub Actions
 
@@ -307,8 +312,8 @@ A `preview` run deploys as `preview-<branch>`, so from `main` it lands on
 preview from ever matching the production branch — without it, a preview run on
 a single-branch repo deploys straight to the live site.
 
-A preview build also says so in the tab: its title is „Prev-Spotify-NoVid“, and
-installed to a home screen it is called „Prev-Musik“. Production is untouched.
+A preview build also says so in the tab: its title is „Prev-Klangkiste“, and
+installed to a home screen it is called „Prev-Klangkiste“. Production is untouched.
 The distinction is made at build time from the `DEPLOY_TARGET` variable the
 workflow passes to `npm run build`, so it holds on the random per-deployment URL
 too — not just on the `preview-<branch>` alias.
@@ -324,6 +329,110 @@ Note the site will be on a public URL. That is not a security problem — a
 stranger only ever reaches a login screen, and Development Mode admits only your
 five allowlisted accounts — but anyone with the link can see that screen. Put it
 behind Cloudflare Access if that bothers you.
+
+## The Android app
+
+`android/` is a second front door onto the same deployment: one Activity, one
+WebView, pointed at the URL you just deployed. It is not a fork of the web app
+and not an offline copy — a Cloudflare deploy updates it too, and a content
+change never needs a new APK. Everything in `src/` is untouched by it, and the
+site keeps working in any browser exactly as before.
+
+### Why it exists
+
+Because of Family Link, and only that. Chrome's **Add to home screen** mints a
+WebAPK, which does appear in Family Link as its own app with its own limit — but
+that package is a shell. Launching it hands off to a Chrome activity that does
+the rendering, so the foreground package is `com.android.chrome`, and Family
+Link enforces on the foreground package. The consequences on a supervised phone:
+
+- Chrome blocked or the device locked → the app is blocked with it.
+- The app's own limit set to unlimited, or marked always-allowed → ignored,
+  because Chrome's limit is the one being applied.
+
+No manifest change fixes this. `display: standalone`, a manifest `id`, maskable
+icons — none of them decide which package owns the activity. Rendering in our
+own Activity does, and that is the whole content of this wrapper: to Family Link
+the app is then `de.julian.klangkiste`, its limit applies, and always-allow
+works. A Trusted Web Activity would *not* have helped, for what it is worth: it
+renders through Chrome's Custom Tab activity and lands in the same place.
+
+If the phones are not managed by Family Link, skip all of this and use **Add to
+home screen**.
+
+### Build it
+
+Needs the Android SDK — install Android Studio and open `android/`, or point
+`ANDROID_HOME` at a command-line SDK. Then, from `android/`:
+
+```bash
+./gradlew assembleRelease     # app/build/outputs/apk/release/app-release.apk
+./gradlew assembleDebug       # unsigned-app shortcut, installs beside the real one
+```
+
+The site it loads is a Gradle property, so a preview build needs no source
+change:
+
+```bash
+./gradlew assembleDebug -Pklangkiste.siteUrl=https://preview-main.spotify-novid.pages.dev
+```
+
+Whatever URL you point it at must have its `/callback` registered in the Spotify
+dashboard: the app's origin is that URL, not the APK, so `src/config.ts` derives
+the same redirect URI it would in a browser.
+
+A release build needs `android/keystore.properties` (untracked):
+
+```properties
+storeFile=/absolute/path/to/klangkiste.jks
+storePassword=…
+keyAlias=klangkiste
+keyPassword=…
+```
+
+Create the keystore once with `keytool -genkeypair -v -keystore klangkiste.jks
+-alias klangkiste -keyalg RSA -keysize 2048 -validity 10000`, keep it outside the
+repo, and back it up. Every later APK must be signed with the same key or it
+installs as a *different app* — new package identity, empty storage, and a
+Family Link entry that has to be configured again.
+
+### Put it on a phone
+
+Sideloading, i.e. installing the file directly rather than from the Play Store:
+`adb install -r app-release.apk` over USB, or copy the APK to the phone and tap
+it. Android will ask to allow "install unknown apps" for whatever is doing the
+installing; on a Family Link phone that prompt needs the parent to approve it on
+the device once.
+
+Then, once:
+
+- Remove the old home-screen PWA icon, so there is one icon and not two.
+- Sign each account in again. The WebView has its own storage, so nothing
+  carries over from Chrome — this is the „Frag bitte einen Erwachsenen" flow,
+  once per account. Use the Spotify email and password at that prompt:
+  *Continue with Google* is refused inside an embedded WebView.
+- In Family Link, give „Klangkiste" whatever limit it should have. That is the
+  point of the exercise — confirm it is enforced, and confirm the app still
+  opens with Chrome blocked.
+
+### What the wrapper is careful about
+
+`MainActivity.kt` is short, and nearly every line in it is load-bearing; the
+comments say why. Two are worth repeating here:
+
+- **Navigation is confined to an allowlist** — the deployed site, plus Spotify's
+  sign-in and 2FA hosts. Anything else opens in the system browser. Without that
+  the wrapper is a browser with no content filter and no screen-time limit on a
+  supervised phone, which would be a worse hole than the one being fixed.
+  `open.spotify.com` is deliberately *not* on the list: it is the full Spotify
+  web player, and it plays video.
+- **`PROTECTED_MEDIA_ID` is granted** in `onPermissionRequest`. Spotify streams
+  are DRM-protected, and a WebView denies Widevine unless asked; without it the
+  phone quietly stops working as a box. Nothing else is granted.
+
+The no-video guarantee is unchanged by any of this: `npm run check:novideo` and
+`src/player/domGuard.ts` cover the same surface, and the wrapper adds no content
+entry point beyond the allowlist above.
 
 ## Playing on the phone (and why)
 
@@ -414,7 +523,8 @@ at once. Worth deploying at a time when you are around to type passwords.
 | `npm run check:novideo` | Fails if any video surface is in `src/` or `dist/` |
 | `npm run spike -- <client-id>` | Step-0 account/device/podcast checks |
 | `npm run spike:player -- <client-id> <episode-id>` | Step-0 check: can the phone itself be the playback device? |
-| `node scripts/make-icons.mjs` | Regenerate PWA launcher icons |
+| `node scripts/make-icons.mjs` | Regenerate the launcher icons, both the PWA's and the Android app's |
+| `cd android && ./gradlew assembleRelease` | Build the Android APK — see [The Android app](#the-android-app) |
 
 ## Things worth knowing
 
