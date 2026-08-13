@@ -36,8 +36,8 @@ export default defineConfig({
       manifest: {
         // Prefixed too, so an installed preview keeps its own home-screen
         // identity rather than shadowing the installed live app.
-        name: `${TITLE_PREFIX}Musik & Podcasts`,
-        short_name: `${TITLE_PREFIX}Musik`,
+        name: `${TITLE_PREFIX}Klangkiste`,
+        short_name: `${TITLE_PREFIX}Klangkiste`,
         description: 'Musik und Podcasts über die Boxen hören.',
         lang: 'de',
         theme_color: '#0f1115',

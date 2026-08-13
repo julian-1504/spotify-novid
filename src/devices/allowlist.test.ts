@@ -117,14 +117,14 @@ describe('the SDK device exception', () => {
     const { allowed, self, hidden } = partitionDevices(
       [
         device({ id: 'a', name: 'Kitchen', type: 'speaker' }),
-        device({ id: SELF, name: 'Musik-App', type: 'Computer' }),
+        device({ id: SELF, name: 'Klangkiste', type: 'Computer' }),
         device({ id: 'tv', name: 'Living room TV', type: 'tv' }),
       ],
       SELF,
     );
 
     expect(allowed.map((d) => d.name)).toEqual(['Kitchen']);
-    expect(self?.name).toBe('Musik-App');
+    expect(self?.name).toBe('Klangkiste');
     expect(hidden.map((h) => h.device.name)).toEqual(['Living room TV']);
   });
 
@@ -132,25 +132,25 @@ describe('the SDK device exception', () => {
   // a box being available.
   it('reports no boxes when the phone is the only device', () => {
     const { allowed, self } = partitionDevices(
-      [device({ id: SELF, name: 'Musik-App', type: 'Computer' })],
+      [device({ id: SELF, name: 'Klangkiste', type: 'Computer' })],
       SELF,
     );
 
     expect(allowed).toEqual([]);
-    expect(self?.name).toBe('Musik-App');
+    expect(self?.name).toBe('Klangkiste');
   });
 
   it('has no self device when this phone is not a player', () => {
     const { allowed, self, hidden } = partitionDevices([
       device({ id: 'a', name: 'Kitchen', type: 'speaker' }),
-      device({ id: SELF, name: 'Musik-App', type: 'Computer' }),
+      device({ id: SELF, name: 'Klangkiste', type: 'Computer' }),
     ]);
 
     expect(self).toBeUndefined();
     expect(allowed.map((d) => d.name)).toEqual(['Kitchen']);
     // Without the exception it is just another computer, and stays refused.
     expect(hidden.map((h) => [h.device.name, h.reason])).toEqual([
-      ['Musik-App', 'blocked-type'],
+      ['Klangkiste', 'blocked-type'],
     ]);
   });
 });
