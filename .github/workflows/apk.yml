@@ -1,0 +1,287 @@
+name: Build the Android app
+
+# Manual trigger only, for the same reason deploy.yml is: a release APK is what
+# goes on the kids' phones, so publishing one is always a decision someone makes,
+# never a side effect of merging.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Build target
+        type: choice
+        default: preview
+        options:
+          - preview
+          - release
+      version:
+        description: 'Version for a release, e.g. 1.1.0 — required for release, ignored for preview'
+        type: string
+        required: false
+      site_url:
+        description: 'Site a preview opens — ignored for release, which always uses production'
+        type: string
+        default: https://preview-main.spotify-novid.pages.dev
+
+concurrency:
+  group: apk-${{ github.event.inputs.target }}
+  cancel-in-progress: false
+
+# To create the tag and the release. Nothing here needs any other scope.
+permissions:
+  contents: write
+
+env:
+  PRODUCTION_BRANCH: main
+  PRODUCTION_URL: https://spotify-novid.pages.dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Resolved and printed before anything is built, mirroring deploy.yml: a
+      # request that cannot be honoured should fail in seconds rather than after
+      # a full Gradle run. Every later step reads these outputs, so the variant
+      # built, the URL compiled in and the tag published cannot disagree.
+      - id: target
+        env:
+          TARGET: ${{ github.event.inputs.target }}
+          VERSION: ${{ github.event.inputs.version }}
+          SITE_URL: ${{ github.event.inputs.site_url }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN: ${{ github.run_number }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$TARGET" = "release" ]; then
+            # A release APK points at the live site, so it inherits deploy.yml's
+            # rule: production ships what is on main.
+            if [ "$REF_NAME" != "$PRODUCTION_BRANCH" ]; then
+              echo "::error::Refusing to build a release APK from '$REF_NAME'. Releases ship what is on $PRODUCTION_BRANCH."
+              exit 1
+            fi
+            if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::A release needs a version like 1.1.0. Got '$VERSION'."
+              exit 1
+            fi
+            variant=release
+            task=assembleRelease
+            version="$VERSION"
+            url="$PRODUCTION_URL"
+            tag="v$VERSION"
+            package=de.julian.klangkiste
+            label=Klangkiste
+            asset="klangkiste-$VERSION.apk"
+            prerelease=false
+          else
+            # Slugged because a branch name may hold a slash, which is legal in a
+            # git ref but not in a release asset name.
+            slug="$(printf '%s' "$REF_NAME" | tr -c 'A-Za-z0-9._-' '-')"
+            # run_number first so previews sort chronologically; the short SHA is
+            # what tells a tester which commit they are actually holding.
+            variant=preview
+            task=assemblePreview
+            version="$RUN-${SHA:0:7}"
+            url="$SITE_URL"
+            tag="preview-$slug-$RUN"
+            package=de.julian.klangkiste.preview
+            label=Prev-Klangkiste
+            asset="klangkiste-preview-$version.apk"
+            prerelease=true
+          fi
+
+          # Guards against a preview pointed at production by a stray input,
+          # which would publish a second package aimed at the live site.
+          if [ "$variant" = "preview" ] && [ "$url" = "$PRODUCTION_URL" ]; then
+            echo "::error::A preview must not point at production ($PRODUCTION_URL)."
+            exit 1
+          fi
+
+          {
+            echo "variant=$variant"
+            echo "task=$task"
+            echo "version=$version"
+            echo "url=$url"
+            echo "tag=$tag"
+            echo "package=$package"
+            echo "label=$label"
+            echo "asset=$asset"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Building $variant $version -> $url"
+          echo "Publishing as $tag / $asset (prerelease=$prerelease)"
+
+      - uses: actions/checkout@v4
+
+      # The runner image already carries the Android SDK (platform 35,
+      # build-tools 34/35) at $ANDROID_HOME, so there is nothing to install —
+      # only the JDK is pinned, and only so a runner image bumping its default
+      # cannot silently change the bytecode target.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # app/build.gradle.kts already reads android/keystore.properties and falls
+      # back to an unsigned build when it is absent, so CI only has to write the
+      # file — no Gradle change, and no signing logic duplicated here.
+      #
+      # Written with printf rather than a heredoc so nothing stray can reach it:
+      # Properties.load decodes ISO-8859-1, and a UTF-8 BOM would be glued onto
+      # the first key name and surface as a baffling "must not be null".
+      - name: Write the signing config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set. Both channels publish signed APKs; see the README."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/klangkiste.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/klangkiste.jks" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
+            > android/keystore.properties
+
+      - name: Build the APK
+        working-directory: android
+        env:
+          TASK: ${{ steps.target.outputs.task }}
+          URL: ${{ steps.target.outputs.url }}
+          VERSION: ${{ steps.target.outputs.version }}
+          CODE: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          ./gradlew "$TASK" \
+            "-Pklangkiste.siteUrl=$URL" \
+            "-Pklangkiste.versionName=$VERSION" \
+            "-Pklangkiste.versionCode=$CODE"
+
+      # The APK equivalent of `npm run check:novideo`: the gate that keeps the
+      # safety properties mechanical rather than aspirational. Everything below
+      # is checked against the built artifact, not against the inputs that were
+      # meant to produce it.
+      - name: Check the APK before publishing
+        working-directory: android
+        env:
+          VARIANT: ${{ steps.target.outputs.variant }}
+          WANT_PKG: ${{ steps.target.outputs.package }}
+          WANT_LABEL: ${{ steps.target.outputs.label }}
+          WANT_URL: ${{ steps.target.outputs.url }}
+          ASSET: ${{ steps.target.outputs.asset }}
+        run: |
+          set -euo pipefail
+          # Newest build-tools on the image, rather than a pinned version that a
+          # future runner image may drop.
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -1)"
+          APK="app/build/outputs/apk/$VARIANT/app-$VARIANT.apk"
+          BADGING="$("$TOOLS/aapt2" dump badging "$APK")"
+
+          fail() { echo "::error::$1"; echo "$BADGING"; exit 1; }
+
+          # A debuggable APK can be entered with `adb run-as`, which exposes the
+          # WebView's stored Spotify refresh tokens for every account on the
+          # phone. Neither published channel may ever be debuggable.
+          if grep -q '^application-debuggable$' <<<"$BADGING"; then
+            fail "APK is debuggable — never publish this"
+          fi
+
+          SIGN="$("$TOOLS/apksigner" verify --print-certs "$APK" 2>&1)"
+          if grep -q 'CN=Android Debug' <<<"$SIGN"; then
+            fail "signed with the throwaway debug key, not the release key"
+          fi
+          if ! grep -q 'certificate DN:' <<<"$SIGN"; then
+            fail "APK is unsigned — no phone will install it"
+          fi
+
+          # The app needs the network and nothing else. Anything new here is a
+          # manifest merge that slipped in unnoticed.
+          PERMS="$(grep -oP "(?<=^uses-permission: name=')[^']+" <<<"$BADGING" | sort | tr '\n' ' ')"
+          if [ "$PERMS" != "android.permission.INTERNET " ]; then
+            fail "unexpected permissions: $PERMS"
+          fi
+
+          # Deliberately 34; see the comment in app/build.gradle.kts.
+          TARGET_SDK="$(grep -oP "(?<=^targetSdkVersion:')[0-9]+" <<<"$BADGING")"
+          if [ "$TARGET_SDK" != "34" ]; then
+            fail "targetSdkVersion is $TARGET_SDK, expected 34"
+          fi
+
+          PKG="$(grep -oP "(?<=^package: name=')[^']+" <<<"$BADGING")"
+          if [ "$PKG" != "$WANT_PKG" ]; then
+            fail "package is $PKG, expected $WANT_PKG"
+          fi
+
+          LABEL="$(grep -oP "(?<=^application-label:')[^']+" <<<"$BADGING")"
+          if [ "$LABEL" != "$WANT_LABEL" ]; then
+            fail "label is $LABEL, expected $WANT_LABEL"
+          fi
+
+          # Read from the generated source, so a property that silently failed to
+          # apply is caught rather than assumed.
+          URL="$(grep -oP '(?<=SITE_URL = ")[^"]+' \
+            "app/build/generated/source/buildConfig/$VARIANT/de/julian/klangkiste/BuildConfig.java")"
+          if [ "$URL" != "$WANT_URL" ]; then
+            fail "SITE_URL is $URL, expected $WANT_URL"
+          fi
+
+          echo "Passed: $PKG / $LABEL / targetSdk $TARGET_SDK / $URL"
+          cp "$APK" "$RUNNER_TEMP/$ASSET"
+
+      # Notes are built with printf into a file rather than a heredoc: a heredoc
+      # terminator has to sit at column 0, which is a trap inside an indented
+      # YAML block.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.target.outputs.tag }}
+          ASSET: ${{ steps.target.outputs.asset }}
+          VERSION: ${{ steps.target.outputs.version }}
+          URL: ${{ steps.target.outputs.url }}
+          PRERELEASE: ${{ steps.target.outputs.prerelease }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          NOTES="$RUNNER_TEMP/notes.md"
+
+          if [ "$PRERELEASE" = "true" ]; then
+            printf '%s\n' \
+              "Test build of \`$REF_NAME\` at \`$SHA\`, opening $URL." \
+              "" \
+              "**This installs as a separate app.** The package is \`de.julian.klangkiste.preview\`" \
+              "and it appears on the phone as *Prev-Klangkiste*, alongside the real Klangkiste" \
+              "rather than replacing it." \
+              "" \
+              "Family Link therefore treats it as its own app with its own screen-time limit," \
+              "independent of the real one. Set that limit too, or uninstall the preview when you" \
+              "have finished testing — otherwise it is an unlimited second copy of the app." \
+              "" \
+              "\`$URL/callback\` must be registered in the Spotify dashboard, or sign-in fails." \
+              > "$NOTES"
+            gh release create "$TAG" "$RUNNER_TEMP/$ASSET" \
+              --prerelease --target "$SHA" \
+              --title "Preview $VERSION" --notes-file "$NOTES"
+          else
+            printf '%s\n' \
+              "Klangkiste $VERSION, opening $URL." \
+              "" \
+              "Download the \`.apk\` below on the phone and tap it to install. Android asks to" \
+              "allow \"install unknown apps\" for whatever is doing the installing; on a Family" \
+              "Link phone a parent approves that once on the device." \
+              "" \
+              "See the README for what to do after a first install — remove the old home-screen" \
+              "PWA icon, and sign each account in again, since the WebView has its own storage." \
+              > "$NOTES"
+            gh release create "$TAG" "$RUNNER_TEMP/$ASSET" \
+              --target "$SHA" \
+              --title "Klangkiste $VERSION" --notes-file "$NOTES"
+          fi
+
+          echo "Published $(gh release view "$TAG" --json url --jq .url)"

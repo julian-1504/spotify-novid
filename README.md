@@ -360,22 +360,95 @@ renders through Chrome's Custom Tab activity and lands in the same place.
 If the phones are not managed by Family Link, skip all of this and use **Add to
 home screen**.
 
+### Get it from GitHub
+
+The normal way to get an APK onto a phone. **Actions → Build the Android app →
+Run workflow**, which publishes to [Releases][releases] — no GitHub account
+needed to download, so the phone's own browser can fetch it and tap to install.
+
+Manual trigger only, for the reason `deploy.yml` is: a release APK is what ends
+up on the kids' phones, so publishing one is a decision someone makes.
+
+| Target | Package | Shows as | Published as | Opens |
+|---|---|---|---|---|
+| `preview` | `de.julian.klangkiste.preview` | Prev-Klangkiste | prerelease `preview-<branch>-<run>` | whatever `site_url` you give it |
+| `release` | `de.julian.klangkiste` | Klangkiste | release `v<version>` | the production site |
+
+```
+https://github.com/julian-1504/spotify-novid/releases/download/v1.1.0/klangkiste-1.1.0.apk
+```
+
+A release additionally requires a `version` like `1.1.0` and must be run from
+`main` — same rule as a production deploy. `versionCode` comes from the run
+number, so it only ever climbs.
+
+> **A preview is a second app, not a newer one.** The `.preview` suffix makes it
+> a separate package, so it installs *beside* the real Klangkiste — which is the
+> point when testing, but it also means Family Link sees another app with its
+> own limit, independent of the real one. Give it a limit too, or uninstall it
+> when you are done. Otherwise it is an unlimited second copy of the app, which
+> is precisely what this wrapper exists to prevent.
+
+Whatever `site_url` a preview points at must have `/callback` registered in the
+Spotify dashboard. That is why it is typed in rather than derived from the
+branch: Cloudflare slugs and truncates branch names to 28 characters, so a
+branch like `claude/pwa-family-link-chrome-lq75uh` yields a host nobody can
+predict — and an unpredictable host cannot be registered in advance.
+
+Before the first run, four repository secrets (Settings → Secrets and variables
+→ Actions), all from the keystore described under *[Build it](#build-it)*:
+
+| Secret | What |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 klangkiste.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | its store password |
+| `ANDROID_KEY_ALIAS` | `klangkiste` |
+| `ANDROID_KEY_PASSWORD` | its key password |
+
+Publishing the APK to a public repo is safe: it holds no secret. There is no
+`assets/` directory and no bundled web code — the app is a WebView onto the
+deployed site — so the Spotify client ID never reaches it. The only
+project-specific string compiled in is `SITE_URL`, which is in this repo
+already. Anyone who installs it still has to sign in with their own account.
+
+Both channels build the **release** variant, and the workflow refuses to publish
+anything that fails a check on the built APK: debuggable, unsigned, signed with
+the debug key, carrying any permission besides `INTERNET`, not `targetSdk 34`,
+wrong package, or a `SITE_URL` that does not match what was asked for. Debuggable
+is the one that matters most — `adb run-as` into a debuggable app reads its data
+directory, and that is where the WebView keeps a refresh token per account.
+
+[releases]: https://github.com/julian-1504/spotify-novid/releases
+
 ### Build it
 
-Needs the Android SDK — install Android Studio and open `android/`, or point
-`ANDROID_HOME` at a command-line SDK. Then, from `android/`:
+Locally, as a fallback or while changing the wrapper. Needs the Android SDK —
+install Android Studio and open `android/`, or point `ANDROID_HOME` at a
+command-line SDK. Then, from `android/`:
 
 ```bash
 ./gradlew assembleRelease     # app/build/outputs/apk/release/app-release.apk
-./gradlew assembleDebug       # unsigned-app shortcut, installs beside the real one
+./gradlew assemblePreview     # the .preview package, as CI's preview channel builds it
+./gradlew assembleDebug       # local-only shortcut, installs beside the other two
 ```
 
-The site it loads is a Gradle property, so a preview build needs no source
-change:
+`assembleDebug` is for a cable and a laptop, and stays that way: a debug build is
+`android:debuggable`, which lets anyone with adb access read the app's data
+directory — every account's Spotify refresh token. `preview` exists so a test
+build need not make that trade; it inherits from `release` and differs only in
+package id and which site it opens.
+
+The site, version name and version code are all Gradle properties, so neither a
+preview nor a release needs a source change:
 
 ```bash
-./gradlew assembleDebug -Pklangkiste.siteUrl=https://preview-main.spotify-novid.pages.dev
+./gradlew assemblePreview \
+  -Pklangkiste.siteUrl=https://preview-main.spotify-novid.pages.dev \
+  -Pklangkiste.versionName=1.2.3 -Pklangkiste.versionCode=42
 ```
+
+The defaults live in `android/gradle.properties`, so a bare `./gradlew
+assembleRelease` on a fresh clone still works.
 
 Whatever URL you point it at must have its `/callback` registered in the Spotify
 dashboard: the app's origin is that URL, not the APK, so `src/config.ts` derives
@@ -399,10 +472,10 @@ Family Link entry that has to be configured again.
 ### Put it on a phone
 
 Sideloading, i.e. installing the file directly rather than from the Play Store:
-`adb install -r app-release.apk` over USB, or copy the APK to the phone and tap
-it. Android will ask to allow "install unknown apps" for whatever is doing the
-installing; on a Family Link phone that prompt needs the parent to approve it on
-the device once.
+open the [Releases][releases] page in the phone's browser and tap the `.apk`, or
+`adb install -r app-release.apk` over USB from a laptop. Android will ask to
+allow "install unknown apps" for whatever is doing the installing; on a Family
+Link phone that prompt needs the parent to approve it on the device once.
 
 Then, once:
 
@@ -524,7 +597,8 @@ at once. Worth deploying at a time when you are around to type passwords.
 | `npm run spike -- <client-id>` | Step-0 account/device/podcast checks |
 | `npm run spike:player -- <client-id> <episode-id>` | Step-0 check: can the phone itself be the playback device? |
 | `node scripts/make-icons.mjs` | Regenerate the launcher icons, both the PWA's and the Android app's |
-| `cd android && ./gradlew assembleRelease` | Build the Android APK — see [The Android app](#the-android-app) |
+| `cd android && ./gradlew assembleRelease` | Build the Android APK locally — see [The Android app](#the-android-app) |
+| Actions → **Build the Android app** | Publish an APK to Releases, preview or release — see [Get it from GitHub](#get-it-from-github) |
 
 ## Things worth knowing
 
