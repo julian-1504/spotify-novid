@@ -60,6 +60,15 @@ const SEARCH_BUCKET: {
 };
 
 /**
+ * Every searchable type, in the order the chips and the „Alles" shelves use.
+ *
+ * Read off `SEARCH_BUCKET` rather than written out a second time, so a type
+ * added to the union cannot be forgotten by the screen — the record's key order
+ * is the one place to reorder or extend what search offers.
+ */
+export const SEARCH_TYPES = Object.keys(SEARCH_BUCKET) as SearchType[];
+
+/**
  * The one bucket a search of one type answers in — as a page, never as nothing.
  *
  * A search that matched nothing comes back with the bucket missing altogether,
@@ -91,6 +100,13 @@ export async function searchPage<K extends SearchType>(
 ): Promise<Paged<SearchItems[K]>> {
   return searchBucket(await search(q, [type], offset), type, offset);
 }
+
+/**
+ * Every type at once — one request, one page of each, which is what the „Alles"
+ * filter shows. Spotify caps that page at ten per bucket, so the shelves are a
+ * taste of each type and a chip is how you see the rest.
+ */
+export const searchAll = (q: string) => search(q, SEARCH_TYPES);
 
 export const getAlbum = (id: string) => apiRequest<Album>(`/albums/${id}`);
 

@@ -403,6 +403,28 @@ h2 {
 
 /* ---------- lists ---------- */
 
+/* A shelf heading with „mehr ›" opposite it, as the „Alles" search view uses. */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-head h2 {
+  margin-bottom: 8px;
+}
+
+.section-head .more {
+  background: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0;
+  min-height: var(--tap);
+  white-space: nowrap;
+}
+
 .rows {
   display: flex;
   flex-direction: column;
@@ -448,19 +470,26 @@ h2 {
   min-width: 0;
 }
 
-.row .name {
-  font-weight: 600;
+/*
+ * Both are spans, so both need saying: inline they ran into each other on one
+ * line („Bibi und Tina LiedBibi und Tina · 1:18") and the ellipsis below never
+ * applied, because an inline box has no width of its own to overflow.
+ */
+.row .name,
+.row .meta {
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.row .name {
+  font-weight: 600;
+}
+
 .row .meta {
   color: var(--muted);
   font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .row.playing .name {

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { playlistItemCount, searchBucket } from './catalog';
+import { SEARCH_TYPES, playlistItemCount, searchBucket } from './catalog';
 import { nextPageOffset } from './paging';
-import type { Album, Paged, Playlist, Track } from './types';
+import { t } from '../strings';
+import type { Album, Artist, Paged, Playlist, Show, Track } from './types';
 
 const playlist = (extra: Partial<Playlist>): Playlist => ({
   id: 'p1',
@@ -43,6 +44,8 @@ const page = <T>(items: T[], next: string | null = null): Paged<T> => ({
 
 const album = (id: string) => ({ id, name: id }) as unknown as Album;
 const track = (id: string) => ({ id, name: id }) as unknown as Track;
+const artist = (id: string) => ({ id, name: id }) as unknown as Artist;
+const show = (id: string) => ({ id, name: id }) as unknown as Show;
 
 describe('searchBucket', () => {
   it('reads the bucket belonging to the type that was searched', () => {
@@ -78,5 +81,39 @@ describe('searchBucket', () => {
 
   it('ends the walk on a missing bucket rather than asking again', () => {
     expect(nextPageOffset(searchBucket({}, 'album', 20))).toBeUndefined();
+  });
+});
+
+/**
+ * The list the chips and the „Alles" shelves are both built from. It is read
+ * off `SEARCH_BUCKET`, so these guard what that derivation cannot: that a type
+ * added there arrives on screen with a German label and its own bucket, rather
+ * than as an unlabelled chip over somebody else's results.
+ */
+describe('SEARCH_TYPES', () => {
+  it('lists every type search offers', () => {
+    expect(SEARCH_TYPES).toEqual(['track', 'album', 'artist', 'playlist', 'show']);
+  });
+
+  it('has a chip label for each', () => {
+    for (const type of SEARCH_TYPES) {
+      expect(t.search.tabs[type]).toBeTruthy();
+    }
+  });
+
+  it('reads a different bucket for each', () => {
+    const results = {
+      tracks: page([track('t1')]),
+      albums: page([album('a1')]),
+      artists: page([artist('r1')]),
+      playlists: page([playlist({})]),
+      shows: page([show('s1')]),
+    };
+
+    const seen = SEARCH_TYPES.map(
+      (type) => searchBucket(results, type).items[0]?.id,
+    );
+
+    expect(seen).toEqual(['t1', 'a1', 'r1', 'p1', 's1']);
   });
 });
