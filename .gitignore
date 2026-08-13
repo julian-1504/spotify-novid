@@ -27,9 +27,16 @@ android/build/
 android/app/build/
 android/local.properties
 
-# Release signing. Neither the keystore nor its passwords belong in the repo,
-# and losing them is not recoverable: an APK signed with a different key
-# installs as a different app rather than as an update.
+# Release signing. The keystore is kept in the working tree, at
+# android/klangkiste.jks, so it sits beside the build that uses it — but it must
+# never reach a commit, because this repository is public and a leaked signing
+# key cannot be un-leaked. A pre-commit hook backs these rules up; see the
+# README, since .git/hooks is not cloned.
+#
+# Careful with `git clean -xdf`: -x deletes ignored files, which includes the
+# keystore. Losing it is not recoverable — an APK signed with a different key
+# installs as a different app rather than as an update, with new identity and
+# empty storage. Keep a copy off this machine.
 android/keystore.properties
 *.jks
 *.keystore

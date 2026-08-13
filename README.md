@@ -454,20 +454,35 @@ Whatever URL you point it at must have its `/callback` registered in the Spotify
 dashboard: the app's origin is that URL, not the APK, so `src/config.ts` derives
 the same redirect URI it would in a browser.
 
-A release build needs `android/keystore.properties` (untracked):
+A release build needs `android/keystore.properties`, untracked, holding paths
+relative to `android/`:
 
 ```properties
-storeFile=/absolute/path/to/klangkiste.jks
+storeFile=klangkiste.jks
 storePassword=…
 keyAlias=klangkiste
 keyPassword=…
 ```
 
 Create the keystore once with `keytool -genkeypair -v -keystore klangkiste.jks
--alias klangkiste -keyalg RSA -keysize 2048 -validity 10000`, keep it outside the
-repo, and back it up. Every later APK must be signed with the same key or it
-installs as a *different app* — new package identity, empty storage, and a
-Family Link entry that has to be configured again.
+-alias klangkiste -keyalg RSA -keysize 2048 -validity 10000`. It lives at
+`android/klangkiste.jks`, in the working tree beside the build that uses it and
+ignored by `*.jks`. CI does not read that copy — it decodes its own from
+`ANDROID_KEYSTORE_BASE64` into the runner's temp directory, and an absolute
+`storeFile` works just as well.
+
+Two things about that file, both unrecoverable if got wrong:
+
+- **Back it up somewhere off this machine.** Every later APK must be signed with
+  the same key or it installs as a *different app* — new package identity, empty
+  storage, and a Family Link entry that has to be configured again.
+- **`git clean -xdf` will delete it**, because `-x` takes ignored files too. That
+  is the cost of keeping it in the tree.
+
+It must never be committed; the repo is public and a leaked signing key cannot be
+un-leaked. `.gitignore` covers it, and a `pre-commit` hook refuses any staged
+`.jks`, `.keystore` or `keystore.properties` as a backstop — that hook is local,
+since `.git/hooks` is not cloned, so recreate it after a fresh clone.
 
 ### Put it on a phone
 

@@ -7,12 +7,17 @@ plugins {
 
 /**
  * Release signing, if a keystore has been set up. `android/keystore.properties`
- * is deliberately not in the repo (see .gitignore) and holds:
+ * is never committed (see .gitignore) and holds:
  *
- *   storeFile=/absolute/path/to/klangkiste.jks
+ *   storeFile=klangkiste.jks
  *   storePassword=…
  *   keyAlias=klangkiste
  *   keyPassword=…
+ *
+ * Both paths below resolve against `android/`, so the keystore can simply sit
+ * beside this properties file in the working tree — untracked, like it is. An
+ * absolute path works too, and is what CI writes: it decodes the key from a
+ * secret into the runner's temp directory.
  *
  * Without it, `assembleRelease` still builds — it just produces an unsigned APK
  * that no phone will install. That is a clearer failure than a build that dies
@@ -56,7 +61,12 @@ android {
     signingConfigs {
         if (keystoreProperties.isNotEmpty()) {
             create("release") {
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                // rootProject.file, matching how keystore.properties itself is
+                // read above: a bare `file()` here belongs to :app and would
+                // resolve a relative path against android/app/ instead of
+                // android/, which is a trap when the two sit side by side.
+                // Absolute paths — what CI supplies — are returned unchanged.
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
                 storePassword = keystoreProperties.getProperty("storePassword")
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
