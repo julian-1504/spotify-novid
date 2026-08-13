@@ -403,6 +403,28 @@ h2 {
 
 /* ---------- lists ---------- */
 
+/* A shelf heading with „mehr ›" opposite it, as the „Alles" search view uses. */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-head h2 {
+  margin-bottom: 8px;
+}
+
+.section-head .more {
+  background: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0;
+  min-height: var(--tap);
+  white-space: nowrap;
+}
+
 .rows {
   display: flex;
   flex-direction: column;

@@ -78,7 +78,15 @@ export const t = {
     hint: 'Suche nach einem Lied, Album, Künstler oder Podcast.',
     searching: 'Sucht …',
     nothingFound: (query: string) => `Nichts gefunden für „${query}“.`,
+    // Shown on each shelf of the „Alles" view; tapping it switches to that
+    // type's own chip, where the whole list is.
+    more: 'mehr',
+    moreOf: (label: string) => `Mehr ${label}`,
     tabs: {
+      // „Alles" is the first chip and the one search starts on: a kid looking
+      // for „Bibi und Tina" wants the Hörspiel, and on a Lieder-only screen
+      // that is one tap away and invisible.
+      all: 'Alles',
       track: 'Lieder',
       album: 'Alben',
       artist: 'Künstler',
