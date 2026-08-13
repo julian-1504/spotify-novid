@@ -29,8 +29,11 @@ const LOAD_TIMEOUT_MS = 15_000;
 /** How long to wait for the SDK to register itself as a device. */
 const READY_TIMEOUT_MS = 20_000;
 
-/** The device name kids see in the picker on their *other* devices. */
-const DEVICE_NAME = 'Musik-App';
+/**
+ * The device name kids see in the picker on their *other* devices. Matches the
+ * name on the icon they tapped, so the phone is recognisable from elsewhere.
+ */
+const DEVICE_NAME = 'Klangkiste';
 
 export type WebPlaybackFailure =
   | 'unsupported'

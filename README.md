@@ -1,8 +1,10 @@
-# Music & Podcasts — an audio-only Spotify client
+# Klangkiste — an audio-only Spotify client
 
-A small installable web app (PWA) that gives kids search, albums, artists,
-playlists and podcasts from Spotify, plays them on the speakers around the
-house, and offers no way whatsoever to watch video.
+A small web app that gives kids search, albums, artists, playlists and podcasts
+from Spotify, plays them on the speakers around the house, and offers no way
+whatsoever to watch video. It runs in any browser, and ships as an Android app
+(`android/`) for phones under Family Link — see *[The Android app](#the-android-app)*
+for why that wrapper is not optional there.
 
 It is a **Spotify Connect remote control**. It never handles an audio or video
 stream itself — it browses the catalogue and tells a speaker what to play.
@@ -193,7 +195,10 @@ a failure that does not reproduce in dev. On other hosts, configure the
 equivalent rewrite yourself.
 
 Then add the production `/callback` URL to the dashboard. On the kid's phone,
-open the site in Chrome and use **Add to Home screen**.
+install the Android app — *[The Android app](#the-android-app)*. **Add to Home
+screen** in Chrome also works and needs nothing further, but on a phone managed
+by Family Link it produces an icon that Chrome's own screen-time limit governs;
+that is the whole reason the wrapper exists.
 
 #### Deploying from GitHub Actions
 
@@ -307,8 +312,8 @@ A `preview` run deploys as `preview-<branch>`, so from `main` it lands on
 preview from ever matching the production branch — without it, a preview run on
 a single-branch repo deploys straight to the live site.
 
-A preview build also says so in the tab: its title is „Prev-Spotify-NoVid“, and
-installed to a home screen it is called „Prev-Musik“. Production is untouched.
+A preview build also says so in the tab: its title is „Prev-Klangkiste“, and
+installed to a home screen it is called „Prev-Klangkiste“. Production is untouched.
 The distinction is made at build time from the `DEPLOY_TARGET` variable the
 workflow passes to `npm run build`, so it holds on the random per-deployment URL
 too — not just on the `preview-<branch>` alias.
@@ -324,6 +329,183 @@ Note the site will be on a public URL. That is not a security problem — a
 stranger only ever reaches a login screen, and Development Mode admits only your
 five allowlisted accounts — but anyone with the link can see that screen. Put it
 behind Cloudflare Access if that bothers you.
+
+## The Android app
+
+`android/` is a second front door onto the same deployment: one Activity, one
+WebView, pointed at the URL you just deployed. It is not a fork of the web app
+and not an offline copy — a Cloudflare deploy updates it too, and a content
+change never needs a new APK. Everything in `src/` is untouched by it, and the
+site keeps working in any browser exactly as before.
+
+### Why it exists
+
+Because of Family Link, and only that. Chrome's **Add to home screen** mints a
+WebAPK, which does appear in Family Link as its own app with its own limit — but
+that package is a shell. Launching it hands off to a Chrome activity that does
+the rendering, so the foreground package is `com.android.chrome`, and Family
+Link enforces on the foreground package. The consequences on a supervised phone:
+
+- Chrome blocked or the device locked → the app is blocked with it.
+- The app's own limit set to unlimited, or marked always-allowed → ignored,
+  because Chrome's limit is the one being applied.
+
+No manifest change fixes this. `display: standalone`, a manifest `id`, maskable
+icons — none of them decide which package owns the activity. Rendering in our
+own Activity does, and that is the whole content of this wrapper: to Family Link
+the app is then `de.julian.klangkiste`, its limit applies, and always-allow
+works. A Trusted Web Activity would *not* have helped, for what it is worth: it
+renders through Chrome's Custom Tab activity and lands in the same place.
+
+If the phones are not managed by Family Link, skip all of this and use **Add to
+home screen**.
+
+### Get it from GitHub
+
+The normal way to get an APK onto a phone. **Actions → Build the Android app →
+Run workflow**, which publishes to [Releases][releases] — no GitHub account
+needed to download, so the phone's own browser can fetch it and tap to install.
+
+Manual trigger only, for the reason `deploy.yml` is: a release APK is what ends
+up on the kids' phones, so publishing one is a decision someone makes.
+
+| Target | Package | Shows as | Published as | Opens |
+|---|---|---|---|---|
+| `preview` | `de.julian.klangkiste.preview` | Prev-Klangkiste | prerelease `preview-<branch>-<run>` | whatever `site_url` you give it |
+| `release` | `de.julian.klangkiste` | Klangkiste | release `v<version>` | the production site |
+
+```
+https://github.com/julian-1504/spotify-novid/releases/download/v1.1.0/klangkiste-1.1.0.apk
+```
+
+A release additionally requires a `version` like `1.1.0` and must be run from
+`main` — same rule as a production deploy. `versionCode` comes from the run
+number, so it only ever climbs.
+
+> **A preview is a second app, not a newer one.** The `.preview` suffix makes it
+> a separate package, so it installs *beside* the real Klangkiste — which is the
+> point when testing, but it also means Family Link sees another app with its
+> own limit, independent of the real one. Give it a limit too, or uninstall it
+> when you are done. Otherwise it is an unlimited second copy of the app, which
+> is precisely what this wrapper exists to prevent.
+
+Whatever `site_url` a preview points at must have `/callback` registered in the
+Spotify dashboard. That is why it is typed in rather than derived from the
+branch: Cloudflare slugs and truncates branch names to 28 characters, so a
+branch like `claude/pwa-family-link-chrome-lq75uh` yields a host nobody can
+predict — and an unpredictable host cannot be registered in advance.
+
+Before the first run, four repository secrets (Settings → Secrets and variables
+→ Actions), all from the keystore described under *[Build it](#build-it)*:
+
+| Secret | What |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 klangkiste.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | its store password |
+| `ANDROID_KEY_ALIAS` | `klangkiste` |
+| `ANDROID_KEY_PASSWORD` | its key password |
+
+Publishing the APK to a public repo is safe: it holds no secret. There is no
+`assets/` directory and no bundled web code — the app is a WebView onto the
+deployed site — so the Spotify client ID never reaches it. The only
+project-specific string compiled in is `SITE_URL`, which is in this repo
+already. Anyone who installs it still has to sign in with their own account.
+
+Both channels build the **release** variant, and the workflow refuses to publish
+anything that fails a check on the built APK: debuggable, unsigned, signed with
+the debug key, carrying any permission besides `INTERNET`, not `targetSdk 34`,
+wrong package, or a `SITE_URL` that does not match what was asked for. Debuggable
+is the one that matters most — `adb run-as` into a debuggable app reads its data
+directory, and that is where the WebView keeps a refresh token per account.
+
+[releases]: https://github.com/julian-1504/spotify-novid/releases
+
+### Build it
+
+Locally, as a fallback or while changing the wrapper. Needs the Android SDK —
+install Android Studio and open `android/`, or point `ANDROID_HOME` at a
+command-line SDK. Then, from `android/`:
+
+```bash
+./gradlew assembleRelease     # app/build/outputs/apk/release/app-release.apk
+./gradlew assemblePreview     # the .preview package, as CI's preview channel builds it
+./gradlew assembleDebug       # local-only shortcut, installs beside the other two
+```
+
+`assembleDebug` is for a cable and a laptop, and stays that way: a debug build is
+`android:debuggable`, which lets anyone with adb access read the app's data
+directory — every account's Spotify refresh token. `preview` exists so a test
+build need not make that trade; it inherits from `release` and differs only in
+package id and which site it opens.
+
+The site, version name and version code are all Gradle properties, so neither a
+preview nor a release needs a source change:
+
+```bash
+./gradlew assemblePreview \
+  -Pklangkiste.siteUrl=https://preview-main.spotify-novid.pages.dev \
+  -Pklangkiste.versionName=1.2.3 -Pklangkiste.versionCode=42
+```
+
+The defaults live in `android/gradle.properties`, so a bare `./gradlew
+assembleRelease` on a fresh clone still works.
+
+Whatever URL you point it at must have its `/callback` registered in the Spotify
+dashboard: the app's origin is that URL, not the APK, so `src/config.ts` derives
+the same redirect URI it would in a browser.
+
+A release build needs `android/keystore.properties` (untracked):
+
+```properties
+storeFile=/absolute/path/to/klangkiste.jks
+storePassword=…
+keyAlias=klangkiste
+keyPassword=…
+```
+
+Create the keystore once with `keytool -genkeypair -v -keystore klangkiste.jks
+-alias klangkiste -keyalg RSA -keysize 2048 -validity 10000`, keep it outside the
+repo, and back it up. Every later APK must be signed with the same key or it
+installs as a *different app* — new package identity, empty storage, and a
+Family Link entry that has to be configured again.
+
+### Put it on a phone
+
+Sideloading, i.e. installing the file directly rather than from the Play Store:
+open the [Releases][releases] page in the phone's browser and tap the `.apk`, or
+`adb install -r app-release.apk` over USB from a laptop. Android will ask to
+allow "install unknown apps" for whatever is doing the installing; on a Family
+Link phone that prompt needs the parent to approve it on the device once.
+
+Then, once:
+
+- Remove the old home-screen PWA icon, so there is one icon and not two.
+- Sign each account in again. The WebView has its own storage, so nothing
+  carries over from Chrome — this is the „Frag bitte einen Erwachsenen" flow,
+  once per account. Use the Spotify email and password at that prompt:
+  *Continue with Google* is refused inside an embedded WebView.
+- In Family Link, give „Klangkiste" whatever limit it should have. That is the
+  point of the exercise — confirm it is enforced, and confirm the app still
+  opens with Chrome blocked.
+
+### What the wrapper is careful about
+
+`MainActivity.kt` is short, and nearly every line in it is load-bearing; the
+comments say why. Two are worth repeating here:
+
+- **Navigation is confined to an allowlist** — the deployed site, plus Spotify's
+  sign-in and 2FA hosts. Anything else opens in the system browser. Without that
+  the wrapper is a browser with no content filter and no screen-time limit on a
+  supervised phone, which would be a worse hole than the one being fixed.
+  `open.spotify.com` is deliberately *not* on the list: it is the full Spotify
+  web player, and it plays video.
+- **`PROTECTED_MEDIA_ID` is granted** in `onPermissionRequest`. Spotify streams
+  are DRM-protected, and a WebView denies Widevine unless asked; without it the
+  phone quietly stops working as a box. Nothing else is granted.
+
+The no-video guarantee is unchanged by any of this: `npm run check:novideo` and
+`src/player/domGuard.ts` cover the same surface, and the wrapper adds no content
+entry point beyond the allowlist above.
 
 ## Playing on the phone (and why)
 
@@ -414,7 +596,9 @@ at once. Worth deploying at a time when you are around to type passwords.
 | `npm run check:novideo` | Fails if any video surface is in `src/` or `dist/` |
 | `npm run spike -- <client-id>` | Step-0 account/device/podcast checks |
 | `npm run spike:player -- <client-id> <episode-id>` | Step-0 check: can the phone itself be the playback device? |
-| `node scripts/make-icons.mjs` | Regenerate PWA launcher icons |
+| `node scripts/make-icons.mjs` | Regenerate the launcher icons, both the PWA's and the Android app's |
+| `cd android && ./gradlew assembleRelease` | Build the Android APK locally — see [The Android app](#the-android-app) |
+| Actions → **Build the Android app** | Publish an APK to Releases, preview or release — see [Get it from GitHub](#get-it-from-github) |
 
 ## Things worth knowing
 

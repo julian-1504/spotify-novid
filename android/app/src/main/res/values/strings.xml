@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    German, like everything a kid reads in this project. Code and comments stay
+    English; see src/strings.ts for the same rule on the web side.
+-->
+<resources>
+    <string name="app_name">Klangkiste</string>
+    <string name="no_browser">Dafür ist kein Browser da.</string>
+</resources>

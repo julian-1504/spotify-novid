@@ -14,7 +14,7 @@
 
 export const t = {
   app: {
-    name: 'Musik & Podcasts',
+    name: 'Klangkiste',
     loading: 'Lädt …',
   },
 
@@ -29,7 +29,7 @@ export const t = {
   },
 
   login: {
-    titleFresh: 'Musik & Podcasts',
+    titleFresh: 'Klangkiste',
     titleExpired: 'Frag bitte einen Erwachsenen',
     introFresh: 'Melde dich mit Spotify an, um Musik auf der Box zu hören.',
     introExpired:

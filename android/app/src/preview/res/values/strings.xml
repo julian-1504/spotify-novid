@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Overrides the name only for the preview build type; everything else comes
+    from src/main.
+
+    "Prev-" is the prefix vite.config.ts already puts on the web app's tab title
+    and PWA manifest name, so a preview reads the same whichever front door it
+    came through. Without this, a phone with the real app, a preview and a debug
+    build shows three icons all called Klangkiste.
+-->
+<resources>
+    <string name="app_name">Prev-Klangkiste</string>
+</resources>
