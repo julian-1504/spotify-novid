@@ -9,11 +9,11 @@ import {
 import { Artwork } from '../components/Artwork';
 import { EndOfList } from '../components/EndOfList';
 import { Icon } from '../components/Icon';
+import { ListStatus } from '../components/ListStatus';
 import { EpisodeRow, TrackRow } from '../components/Rows';
 import { usePagedList } from '../hooks/usePagedList';
 import { usePlayer } from '../player/PlayerProvider';
 import { play } from '../api/player';
-import { toFriendlyError } from '../errors';
 import { t } from '../strings';
 
 export function Playlist() {
@@ -78,12 +78,6 @@ export function Playlist() {
         </div>
       </div>
 
-      {items.error && (
-        <div className="error">{toFriendlyError(items.error).message}</div>
-      )}
-
-      {items.isLoading && <div className="spinner">{t.app.loading}</div>}
-
       <div className="rows">
         {rows.map(({ entry, index }) =>
           entry.type === 'episode' ? (
@@ -99,6 +93,15 @@ export function Playlist() {
           ),
         )}
       </div>
+      {/* `rows`, not `items.entries`: an entry whose song was removed renders
+          as nothing while still occupying its place, so counting entries would
+          call a playlist of nothing but holes a full one. */}
+      <ListStatus
+        list={items}
+        count={rows.length}
+        icon="note"
+        empty={t.detail.emptyPlaylist}
+      />
 
       {items.isFetchingNextPage && (
         <div className="spinner">{t.app.loading}</div>
@@ -107,17 +110,6 @@ export function Playlist() {
         onReach={items.fetchNextPage}
         active={items.hasNextPage && !items.isFetchingNextPage}
       />
-
-      {/* Not while the list is failing: „leer" and „hat nicht geklappt" are
-          different answers, and showing both says neither. */}
-      {!items.error && !items.isLoading && rows.length === 0 && (
-        <div className="empty">
-          <div className="big">
-            <Icon name="note" size={44} />
-          </div>
-          <p>{t.detail.emptyPlaylist}</p>
-        </div>
-      )}
     </div>
   );
 }

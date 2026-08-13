@@ -34,6 +34,20 @@ export function usePagedList<T>(
      */
     total: pages?.[0]?.total,
     error: query.error,
+    /**
+     * Nothing has arrived and nothing has failed — the honest test for „this
+     * list is not here yet".
+     *
+     * `isLoading` is deliberately not what callers should ask, because it is
+     * `isPending && isFetching`: a query waiting between retry attempts, or one
+     * React Query has paused because it believes the connection is gone, is
+     * pending while *not* fetching. Reading `isLoading` there says „finished,
+     * nothing to show" about a list that never arrived — which is how a
+     * playlist that failed to load came to announce itself as empty.
+     */
+    isPending: query.isPending,
+    /** Waiting for a connection rather than for Spotify. Never resolves alone. */
+    isPaused: query.isPaused,
     isLoading: query.isLoading,
     fetchNextPage: query.fetchNextPage,
     hasNextPage: query.hasNextPage,

@@ -116,6 +116,15 @@ export const t = {
     // Said out loud, because a playlist with nothing in it used to look
     // exactly like the bug where the songs were there and simply not drawn.
     emptyPlaylist: 'Diese Playlist ist noch leer.',
+    /*
+     * The same sentence for the other three lists, which used to say nothing at
+     * all. Each names the thing it is empty of rather than sharing one „nichts
+     * gefunden": a kid who reads „Von diesem Künstler gibt es hier nichts" knows
+     * the app worked and the music is elsewhere, which is the honest answer.
+     */
+    emptyArtist: 'Von diesem Künstler gibt es hier nichts zu hören.',
+    emptyShow: 'Von diesem Podcast gibt es noch keine Folgen.',
+    emptyAlbum: 'Auf diesem Album sind keine Lieder.',
   },
 
   episode: {

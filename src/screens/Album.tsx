@@ -4,6 +4,7 @@ import { getAlbum, getAlbumTracks } from '../api/catalog';
 import { Artwork } from '../components/Artwork';
 import { EndOfList } from '../components/EndOfList';
 import { Icon } from '../components/Icon';
+import { ListStatus } from '../components/ListStatus';
 import { TrackRow } from '../components/Rows';
 import { usePagedList } from '../hooks/usePagedList';
 import { usePlayer } from '../player/PlayerProvider';
@@ -71,6 +72,12 @@ export function Album() {
           />
         ))}
       </div>
+      <ListStatus
+        list={tracks}
+        count={tracks.entries.length}
+        icon="note"
+        empty={t.detail.emptyAlbum}
+      />
 
       {tracks.isFetchingNextPage && (
         <div className="spinner">{t.app.loading}</div>

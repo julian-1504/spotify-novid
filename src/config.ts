@@ -119,3 +119,16 @@ export const PLAYBACK_POLL_MS = 3000;
 
 /** Spotify capped search at 10 results per page in February 2026. */
 export const SEARCH_PAGE_SIZE = 10;
+
+/**
+ * The same cap, on `/artists/{id}/albums`.
+ *
+ * Asking for more is not merely trimmed to the maximum — it is refused with
+ * `400 Invalid limit`, and the whole list comes back as nothing. Measured
+ * against the live API rather than read off the docs: 10 answers, 11 does not.
+ *
+ * Every other paged endpoint this app uses still takes 50 (album tracks, show
+ * episodes and the three library lists were all checked at the same time), so
+ * this is a per-endpoint cap and not a new global one.
+ */
+export const ARTIST_ALBUM_PAGE_SIZE = 10;

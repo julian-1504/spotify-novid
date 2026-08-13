@@ -8,7 +8,7 @@
  * layer instead.
  */
 
-import { SEARCH_PAGE_SIZE } from '../config';
+import { ARTIST_ALBUM_PAGE_SIZE, SEARCH_PAGE_SIZE } from '../config';
 import { apiRequest } from './client';
 import type {
   Album,
@@ -117,9 +117,25 @@ export const getAlbumTracks = (id: string, offset = 0) =>
 
 export const getArtist = (id: string) => apiRequest<Artist>(`/artists/${id}`);
 
+/**
+ * Everything an artist is on — not only what they released under their own name.
+ *
+ * `compilation` and `appears_on` are in the list because of what this app is
+ * for: in a Hörspiel and kids-music catalogue the record a kid is looking for
+ * is usually a Sampler somebody else put out, and asking only for `album,single`
+ * hid exactly those. For the artist this was first noticed on it is the
+ * difference between 2 releases and 11.
+ *
+ * Note the page size: this endpoint refuses anything above ten outright. See
+ * ARTIST_ALBUM_PAGE_SIZE.
+ */
 export const getArtistAlbums = (id: string, offset = 0) =>
   apiRequest<Paged<Album>>(`/artists/${id}/albums`, {
-    query: { limit: 50, offset, include_groups: 'album,single' },
+    query: {
+      limit: ARTIST_ALBUM_PAGE_SIZE,
+      offset,
+      include_groups: 'album,single,compilation,appears_on',
+    },
   });
 
 export const getPlaylist = (id: string) =>

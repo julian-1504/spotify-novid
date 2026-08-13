@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getArtist, getArtistAlbums } from '../api/catalog';
 import { Artwork } from '../components/Artwork';
 import { EndOfList } from '../components/EndOfList';
+import { ListStatus } from '../components/ListStatus';
 import { AlbumTile } from '../components/Rows';
 import { usePagedList } from '../hooks/usePagedList';
 import { t } from '../strings';
@@ -38,12 +39,17 @@ export function Artist() {
       </div>
 
       <h2>{t.detail.albums}</h2>
-      {albums.isLoading && <div className="spinner">{t.app.loading}</div>}
       <div className="grid">
         {albums.entries.map(({ item, index }) => (
           <AlbumTile key={`${item.id}-${index}`} album={item} />
         ))}
       </div>
+      <ListStatus
+        list={albums}
+        count={albums.entries.length}
+        icon="album"
+        empty={t.detail.emptyArtist}
+      />
 
       {albums.isFetchingNextPage && (
         <div className="spinner">{t.app.loading}</div>
