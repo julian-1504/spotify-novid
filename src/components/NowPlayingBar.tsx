@@ -3,11 +3,13 @@ import { usePlayer } from '../player/PlayerProvider';
 import * as player from '../api/player';
 import { Artwork, formatDuration } from './Artwork';
 import { DevicePicker } from './DevicePicker';
+import { NowPlayingSheet } from './NowPlayingSheet';
 import { Icon } from './Icon';
 import { t } from '../strings';
 import type { Episode, Track } from '../api/types';
 
-function subtitleFor(item: Track | Episode | null | undefined): string {
+/** Exported because the sheet shows the same line under the same title. */
+export function subtitleFor(item: Track | Episode | null | undefined): string {
   if (!item) return '';
   if (item.type === 'episode') return item.show?.name ?? 'Podcast';
   return item.artists?.map((a) => a.name).join(', ') ?? '';
@@ -23,6 +25,7 @@ export function NowPlayingBar() {
     selfSelected,
   } = usePlayer();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [scrub, setScrub] = useState<number | null>(null);
 
   const item = state?.item;
@@ -83,25 +86,44 @@ export function NowPlayingBar() {
         </button>
 
         <div className="np-main">
-          <Artwork
-            images={item?.type === 'episode' ? item.images : item?.album?.images}
-            alt=""
-          />
-          <div className="np-text">
-            <div className="np-title">
-              {item?.name ?? t.player.nothingPlaying}
-            </div>
-            <div className="np-sub">
-              {/*
-                While the phone is the player the sound comes out of the phone,
-                not the box. Saying so beats a kid concluding the box is broken
-                — the pairing is a one-off they may never have been told about.
-              */}
-              {selfSelected && !item
-                ? t.player.phoneBluetoothHint
-                : subtitleFor(item) || (noSpeaker ? t.player.pickSpeaker : '')}
-            </div>
-          </div>
+          {/*
+            The cover and the title are the way to where this came from, so they
+            are one button and the transport controls stay outside it — reaching
+            for „Weiter" must never land on a sheet. Disabled while nothing is
+            playing: a sheet that only repeats „Es läuft gerade nichts" is worse
+            than a tap that does nothing at all.
+          */}
+          <button
+            className="np-open"
+            disabled={!item}
+            aria-haspopup="dialog"
+            aria-label={t.player.openDetails}
+            onClick={() => setSheetOpen(true)}
+          >
+            <Artwork
+              images={
+                item?.type === 'episode' ? item.images : item?.album?.images
+              }
+              alt=""
+            />
+            <span className="np-text">
+              <span className="np-title">
+                {item?.name ?? t.player.nothingPlaying}
+              </span>
+              <span className="np-sub">
+                {/*
+                  While the phone is the player the sound comes out of the
+                  phone, not the box. Saying so beats a kid concluding the box
+                  is broken — the pairing is a one-off they may never have been
+                  told about.
+                */}
+                {selfSelected && !item
+                  ? t.player.phoneBluetoothHint
+                  : subtitleFor(item) || (noSpeaker ? t.player.pickSpeaker : '')}
+              </span>
+            </span>
+            {item && <Icon name="chevron-right" size={14} />}
+          </button>
 
           <div className="np-buttons">
             <button
@@ -155,6 +177,7 @@ export function NowPlayingBar() {
       </div>
 
       {pickerOpen && <DevicePicker onClose={() => setPickerOpen(false)} />}
+      {sheetOpen && <NowPlayingSheet onClose={() => setSheetOpen(false)} />}
     </>
   );
 }

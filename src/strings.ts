@@ -138,6 +138,25 @@ export const t = {
     position: 'Position',
     volume: 'Lautstärke',
 
+    /*
+     * Tapping what is playing to get to where it came from.
+     *
+     * „zeigen" rather than „öffnen" or „gehe zu": a kid asks to be *shown*
+     * something, and the same verb across all four rows means only one word
+     * changes between them — the word that says where they will end up.
+     */
+    openDetails: 'Zeigen, wozu das gehört',
+    moreTitle: 'Wo kommt das her?',
+    showAlbum: 'Album zeigen',
+    showPlaylist: 'Playlist zeigen',
+    showShow: 'Podcast zeigen',
+    showArtist: 'Künstler zeigen',
+    // Sits under the name when a song has several artists and each gets a row.
+    artist: 'Künstler',
+    // A local file or an advert: there is genuinely nowhere to go. Said out
+    // loud, because an empty sheet looks exactly like one that failed to load.
+    noPage: 'Dazu gibt es leider keine Seite.',
+
     // This phone as the player. Podcasts do not play on every box, but they
     // always play here — and from here they reach the box over Bluetooth.
     thisPhone: 'Dieses Handy',
