@@ -22,7 +22,16 @@ import type {
   Track,
 } from './types';
 
-export type SearchType = 'track' | 'album' | 'artist' | 'playlist' | 'show';
+/** What a search of each type answers with. */
+interface SearchItems {
+  track: Track;
+  album: Album;
+  artist: Artist;
+  playlist: Playlist;
+  show: Show;
+}
+
+export type SearchType = keyof SearchItems;
 
 export function search(
   q: string,
@@ -38,6 +47,49 @@ export function search(
       additional_types: 'track,episode',
     },
   });
+}
+
+const SEARCH_BUCKET: {
+  [K in SearchType]: (r: SearchResults) => Paged<SearchItems[K]> | undefined;
+} = {
+  track: (r) => r.tracks,
+  album: (r) => r.albums,
+  artist: (r) => r.artists,
+  playlist: (r) => r.playlists,
+  show: (r) => r.shows,
+};
+
+/**
+ * The one bucket a search of one type answers in — as a page, never as nothing.
+ *
+ * A search that matched nothing comes back with the bucket missing altogether,
+ * and an empty page is the honest reading of that: it says "no results" to the
+ * screen, and `nextPageOffset` reads it as the end of the walk rather than as a
+ * reason to keep asking for the same offset.
+ */
+export function searchBucket<K extends SearchType>(
+  results: SearchResults,
+  type: K,
+  offset = 0,
+): Paged<SearchItems[K]> {
+  return (
+    SEARCH_BUCKET[type](results) ?? {
+      items: [],
+      total: 0,
+      limit: SEARCH_PAGE_SIZE,
+      offset,
+      next: null,
+    }
+  );
+}
+
+/** One page of search results of a single type, ready for `usePagedList`. */
+export async function searchPage<K extends SearchType>(
+  q: string,
+  type: K,
+  offset = 0,
+): Promise<Paged<SearchItems[K]>> {
+  return searchBucket(await search(q, [type], offset), type, offset);
 }
 
 export const getAlbum = (id: string) => apiRequest<Album>(`/albums/${id}`);

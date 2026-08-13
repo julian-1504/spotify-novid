@@ -2,7 +2,9 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getArtist, getArtistAlbums } from '../api/catalog';
 import { Artwork } from '../components/Artwork';
+import { EndOfList } from '../components/EndOfList';
 import { AlbumTile } from '../components/Rows';
+import { usePagedList } from '../hooks/usePagedList';
 import { t } from '../strings';
 
 /**
@@ -16,10 +18,11 @@ export function Artist() {
     queryKey: ['artist', id],
     queryFn: () => getArtist(id),
   });
-  const albums = useQuery({
-    queryKey: ['artist', id, 'albums'],
-    queryFn: () => getArtistAlbums(id),
-  });
+  // A Hörspiel series is one artist with hundreds of albums, so this one is
+  // paged too: the first fifty are not the series, they are the start of it.
+  const albums = usePagedList(['artist', id, 'albums'], (offset) =>
+    getArtistAlbums(id, offset),
+  );
 
   if (artist.isLoading) return <div className="spinner">{t.app.loading}</div>;
   if (!artist.data) return null;
@@ -37,10 +40,18 @@ export function Artist() {
       <h2>{t.detail.albums}</h2>
       {albums.isLoading && <div className="spinner">{t.app.loading}</div>}
       <div className="grid">
-        {albums.data?.items.map((album) => (
-          <AlbumTile key={album.id} album={album} />
+        {albums.entries.map(({ item, index }) => (
+          <AlbumTile key={`${item.id}-${index}`} album={item} />
         ))}
       </div>
+
+      {albums.isFetchingNextPage && (
+        <div className="spinner">{t.app.loading}</div>
+      )}
+      <EndOfList
+        onReach={albums.fetchNextPage}
+        active={albums.hasNextPage && !albums.isFetchingNextPage}
+      />
     </div>
   );
 }

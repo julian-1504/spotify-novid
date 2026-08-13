@@ -2,8 +2,10 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getAlbum, getAlbumTracks } from '../api/catalog';
 import { Artwork } from '../components/Artwork';
+import { EndOfList } from '../components/EndOfList';
 import { Icon } from '../components/Icon';
 import { TrackRow } from '../components/Rows';
+import { usePagedList } from '../hooks/usePagedList';
 import { usePlayer } from '../player/PlayerProvider';
 import { play } from '../api/player';
 import { toFriendlyError } from '../errors';
@@ -14,10 +16,11 @@ export function Album() {
   const { command, selectedDevice } = usePlayer();
 
   const album = useQuery({ queryKey: ['album', id], queryFn: () => getAlbum(id) });
-  const tracks = useQuery({
-    queryKey: ['album', id, 'tracks'],
-    queryFn: () => getAlbumTracks(id),
-  });
+  // Paged, because a Hörspiel is one album with a track per chapter and runs
+  // well past the fifty a single page holds.
+  const tracks = usePagedList(['album', id, 'tracks'], (offset) =>
+    getAlbumTracks(id, offset),
+  );
 
   if (album.isLoading) return <div className="spinner">{t.app.loading}</div>;
   if (album.error)
@@ -56,15 +59,26 @@ export function Album() {
       </div>
 
       <div className="rows">
-        {tracks.data?.items.map((track, i) => (
+        {tracks.entries.map(({ item, index }) => (
+          // `index` is the position in the whole album rather than in the page
+          // it arrived on — it is what tells Spotify which track to start at,
+          // so track 51 has to say 50.
           <TrackRow
-            key={track.id}
-            track={track}
-            index={i}
+            key={`${item.id}-${index}`}
+            track={item}
+            index={index}
             contextUri={album.data.uri}
           />
         ))}
       </div>
+
+      {tracks.isFetchingNextPage && (
+        <div className="spinner">{t.app.loading}</div>
+      )}
+      <EndOfList
+        onReach={tracks.fetchNextPage}
+        active={tracks.hasNextPage && !tracks.isFetchingNextPage}
+      />
     </div>
   );
 }

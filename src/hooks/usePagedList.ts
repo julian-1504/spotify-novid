@@ -14,12 +14,18 @@ import type { Paged } from '../api/types';
 export function usePagedList<T>(
   queryKey: QueryKey,
   fetchPage: (offset: number) => Promise<Paged<T>>,
+  /**
+   * `enabled: false` holds the whole walk back — search needs it, because there
+   * is nothing to search for until something has been typed.
+   */
+  options?: { enabled?: boolean },
 ) {
   const query = useInfiniteQuery({
     queryKey,
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     initialPageParam: 0,
     getNextPageParam: nextPageOffset,
+    enabled: options?.enabled ?? true,
   });
 
   const pages = query.data?.pages;
@@ -33,6 +39,7 @@ export function usePagedList<T>(
      * from it.
      */
     total: pages?.[0]?.total,
+    error: query.error,
     isLoading: query.isLoading,
     fetchNextPage: query.fetchNextPage,
     hasNextPage: query.hasNextPage,
