@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { usePlayer } from '../player/PlayerProvider';
+import { useSleepTimer } from '../player/SleepProvider';
+import { formatRemaining } from '../player/sleepTimer';
 import * as player from '../api/player';
 import { Artwork, formatDuration } from './Artwork';
 import { DevicePicker } from './DevicePicker';
 import { NowPlayingSheet } from './NowPlayingSheet';
+import { SleepPicker } from './SleepPicker';
 import { Icon } from './Icon';
 import { t } from '../strings';
 import type { Episode, Track } from '../api/types';
@@ -24,8 +27,10 @@ export function NowPlayingBar() {
     command,
     selfSelected,
   } = usePlayer();
+  const { timer, remaining } = useSleepTimer();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sleepOpen, setSleepOpen] = useState(false);
   const [scrub, setScrub] = useState<number | null>(null);
 
   const item = state?.item;
@@ -48,42 +53,64 @@ export function NowPlayingBar() {
 
   const noSpeaker = !selectedDevice;
   const progress = scrub ?? localProgress;
+  const sleepLeft = timer && remaining !== null ? formatRemaining(remaining) : null;
 
   return (
     <>
       <div className="nowplaying">
-        <button
-          className={`np-device ${noSpeaker ? 'warn' : ''}`}
-          onClick={() => setPickerOpen(true)}
-        >
-          <span className="np-device-label">
-            <Icon
-              name={
-                selfSelected
-                  ? 'phone'
-                  : noSpeaker && (devices.length === 0 || unavailableDeviceName)
-                    ? 'speaker-off'
-                    : 'speaker'
-              }
-              size={18}
-            />
-            {/*
-              Four different situations, and a kid needs to tell them apart:
-              it is playing on this phone, the chosen box is switched off, no
-              box has been chosen yet, or none was found at all.
-            */}
-            {selfSelected
-              ? t.player.thisPhone
-              : selectedDevice
-                ? selectedDevice.name
-                : unavailableDeviceName
-                  ? t.player.deviceOff(unavailableDeviceName)
-                  : devices.length > 0
-                    ? t.player.tapToPick
-                    : t.player.noSpeakerFound}
-          </span>
-          <Icon name="chevron-down" size={18} />
-        </button>
+        <div className="np-top">
+          <button
+            className={`np-device ${noSpeaker ? 'warn' : ''}`}
+            onClick={() => setPickerOpen(true)}
+          >
+            <span className="np-device-label">
+              <Icon
+                name={
+                  selfSelected
+                    ? 'phone'
+                    : noSpeaker && (devices.length === 0 || unavailableDeviceName)
+                      ? 'speaker-off'
+                      : 'speaker'
+                }
+                size={18}
+              />
+              {/*
+                Four different situations, and a kid needs to tell them apart:
+                it is playing on this phone, the chosen box is switched off, no
+                box has been chosen yet, or none was found at all.
+              */}
+              {selfSelected
+                ? t.player.thisPhone
+                : selectedDevice
+                  ? selectedDevice.name
+                  : unavailableDeviceName
+                    ? t.player.deviceOff(unavailableDeviceName)
+                    : devices.length > 0
+                      ? t.player.tapToPick
+                      : t.player.noSpeakerFound}
+            </span>
+            <Icon name="chevron-down" size={18} />
+          </button>
+
+          {/*
+            The sleep timer. Not disabled without a box, unlike the transport
+            buttons below: setting the timer first and starting the music after
+            is a perfectly ordinary order to do it in.
+
+            It keeps the word „Timer" while nothing is set, because a bare
+            crescent is not something a ten-year-old taps to find out what it
+            does. Once a timer runs the word gives way to the time left, which
+            is the whole reason this sits in the bar rather than in a sheet.
+          */}
+          <button
+            className={`np-sleep ${sleepLeft ? 'on' : ''}`}
+            aria-label={sleepLeft ? t.sleep.aria(sleepLeft) : t.sleep.ariaOff}
+            onClick={() => setSleepOpen(true)}
+          >
+            <Icon name="moon" size={18} />
+            {sleepLeft ?? t.sleep.label}
+          </button>
+        </div>
 
         <div className="np-main">
           {/*
@@ -178,6 +205,7 @@ export function NowPlayingBar() {
 
       {pickerOpen && <DevicePicker onClose={() => setPickerOpen(false)} />}
       {sheetOpen && <NowPlayingSheet onClose={() => setSheetOpen(false)} />}
+      {sleepOpen && <SleepPicker onClose={() => setSleepOpen(false)} />}
     </>
   );
 }

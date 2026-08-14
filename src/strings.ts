@@ -212,6 +212,34 @@ export const t = {
   },
 
   /**
+   * The sleep timer, for listening in bed.
+   *
+   * „Einschlaf-Timer" rather than „Schlaf-Timer": it is the falling asleep that
+   * this is for, and the longer word is the one on every clock radio a parent
+   * has ever owned, so a grown-up asked about it knows it straight away too.
+   *
+   * The countdown says „noch" because that is how a kid asks the question —
+   * „wie lange noch?" — and „Min" rather than „Minuten" only because it sits in
+   * the narrow strip beside the box name.
+   */
+  sleep: {
+    title: 'Einschlaf-Timer',
+    subtitle: 'Die Musik hört dann von allein auf.',
+    // The button's label while no timer is set. Deliberately a word and not a
+    // bare moon: nothing makes a 10-year-old tap an icon to find out what it is.
+    label: 'Timer',
+    option: (minutes: number) => `${minutes} Minuten`,
+    off: 'Aus',
+    left: (minutes: number) => `noch ${minutes} Min`,
+    // Under a minute. „noch 0 Min" reads like something already went wrong.
+    almost: 'gleich aus',
+    // The visible label is a fragment, so the button spells it out for a
+    // screen reader.
+    aria: (state: string) => `Einschlaf-Timer, ${state}`,
+    ariaOff: 'Einschlaf-Timer, keiner eingestellt',
+  },
+
+  /**
    * Shown when the runtime no-video guard trips. Deliberately a full stop
    * rather than a warning: the promise the app is built on is no longer being
    * kept, so it stops instead of carrying on quietly.

@@ -750,11 +750,30 @@ h2 {
   height: 24px;
 }
 
+/* The strip above the artwork: which box, and how long the music may go on. */
+.np-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .np-device {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
+  /* `flex-start` and not `space-between`, which is what this used to be back
+     when the button was the whole strip: with the timer beside it now, the
+     button's right edge is wherever the timer starts, so `space-between` parked
+     the chevron against „noch 42 Min" and it read as the timer's arrow rather
+     than the box's. It belongs next to the name it opens. */
+  justify-content: flex-start;
+  gap: 4px;
+  /* Still claims what the timer leaves, so a long box name has room to truncate
+     against and the stretch between the chevron and the timer stays part of
+     this button's tap target instead of becoming dead space. `min-width: 0` is
+     what lets that truncation happen rather than pushing the timer off the
+     edge. */
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 6px 4px 0;
   font-size: 13px;
   color: var(--accent);
@@ -776,6 +795,30 @@ h2 {
 }
 
 .np-device .icon {
+  flex: none;
+}
+
+/* Same small-strip metrics as .np-device, including its deliberate exception to
+   the global `min-height: var(--tap)` — the two share a row, so they have to
+   share a height. Muted until a timer is set, so an idle one is there to be
+   found without competing with the box name for attention. */
+.np-sleep {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+  min-height: 34px;
+  white-space: nowrap;
+}
+
+.np-sleep.on {
+  color: var(--accent);
+}
+
+.np-sleep .icon {
   flex: none;
 }
 
