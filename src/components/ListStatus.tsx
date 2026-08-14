@@ -11,11 +11,18 @@
  */
 
 import { Icon, type IconName } from './Icon';
+import { isForbidden } from '../api/client';
 import { toFriendlyError } from '../errors';
 import { t } from '../strings';
 
-/** Which of the five things a paged list is currently doing. */
-export type ListState = 'loading' | 'offline' | 'error' | 'empty' | 'ready';
+/** Which of the six things a paged list is currently doing. */
+export type ListState =
+  | 'loading'
+  | 'offline'
+  | 'forbidden'
+  | 'error'
+  | 'empty'
+  | 'ready';
 
 export interface ListQuery {
   /** Nothing has arrived and nothing has failed. See usePagedList. */
@@ -41,9 +48,15 @@ export interface ListQuery {
  *
  * An error wins even once some rows are on screen — a list that stopped
  * part-way did stop part-way, and the rows go on rendering above the message.
+ *
+ * „Das darf die App nicht lesen" is a third answer beside „leer" and „hat nicht
+ * geklappt", and it is the one a playlist somebody else made gives when even
+ * the fallback in `getPlaylistPage` came up empty. Telling a parent something
+ * went wrong sends them looking for a fault that is not there, so it is worth
+ * a word of its own.
  */
 export function listState(list: ListQuery, count: number): ListState {
-  if (list.error) return 'error';
+  if (list.error) return isForbidden(list.error) ? 'forbidden' : 'error';
   if (list.isPaused) return 'offline';
   if (list.isPending) return 'loading';
   if (count === 0) return 'empty';
@@ -59,6 +72,7 @@ export function ListStatus({
   count,
   icon,
   empty,
+  forbidden,
 }: {
   list: ListQuery;
   count: number;
@@ -66,6 +80,12 @@ export function ListStatus({
   icon: IconName;
   /** What „nothing here" means on this screen, in words. */
   empty: string;
+  /**
+   * What „das darf die App nicht lesen" means on this screen. Optional: a
+   * screen with nothing better to say falls back to the general wording, which
+   * is what the three screens that have never met a refusal do.
+   */
+  forbidden?: string;
 }) {
   const state = listState(list, count);
 
@@ -75,6 +95,16 @@ export function ListStatus({
   // a spinner that would never stop, or as „leer", which it certainly is not.
   if (state === 'offline')
     return <div className="error">{t.errors.offline}</div>;
+
+  // Yellow, not red: a refusal is Spotify answering, not the app breaking. The
+  // wording says so and the colour has to agree, or the box goes on shouting
+  // „kaputt" underneath a sentence that says nothing is.
+  if (state === 'forbidden')
+    return (
+      <div className="notice">
+        {forbidden ?? toFriendlyError(list.error).message}
+      </div>
+    );
 
   if (state === 'error')
     return <div className="error">{toFriendlyError(list.error).message}</div>;

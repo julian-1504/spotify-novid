@@ -117,6 +117,15 @@ export const t = {
     // exactly like the bug where the songs were there and simply not drawn.
     emptyPlaylist: 'Diese Playlist ist noch leer.',
     /*
+     * A playlist somebody else put together. Spotify refuses this app its songs
+     * — measured, see api/catalog.ts — but not the playlist itself, so the
+     * second sentence is the one that matters: „Abspielen" plays the whole
+     * thing, in order, and that was confirmed against a real speaker. Without
+     * it a kid reads this as „kaputt" and goes looking for another playlist.
+     */
+    foreignPlaylist:
+      'Diese Playlist hat jemand anderes gemacht, darum kann die App ihre Lieder nicht einfach so auflisten. Mit „Abspielen" läuft sie trotzdem — von vorne bis hinten.',
+    /*
      * The same sentence for the other three lists, which used to say nothing at
      * all. Each names the thing it is empty of rather than sharing one „nichts
      * gefunden": a kid who reads „Von diesem Künstler gibt es hier nichts" knows

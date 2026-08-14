@@ -6,6 +6,14 @@
  * `/tracks` path was removed). Batch `GET /albums`, `/tracks`, `/episodes`
  * are gone too, so everything is fetched individually and cached by the query
  * layer instead.
+ *
+ * A third thing shapes the playlist half of this file, and it is a limit rather
+ * than a workaround: `/playlists/{id}/items` is refused with a 403 for any
+ * playlist this account does not own, and the playlist object itself then
+ * arrives with no `items` and no `tracks` at all — not the songs, not even a
+ * count. Measured, not read off the docs: `npm run spike:playlist`, which also
+ * tried market, fields and additional_types on both endpoints. There is no way
+ * to list such a playlist, so the screen says so. Playing it still works.
  */
 
 import { ARTIST_ALBUM_PAGE_SIZE, SEARCH_PAGE_SIZE } from '../config';
@@ -173,6 +181,9 @@ export const playlistEntry = (entry: PlaylistItem): Track | Episode | null =>
  *
  * One item is requested because only the page total is wanted; the items
  * themselves are the detail screen's business.
+ *
+ * Refused for a playlist this account does not own, like everything else about
+ * one — the tile then shows no count rather than a wrong one.
  */
 export async function fetchPlaylistItemCount(id: string): Promise<number> {
   const page = await apiRequest<Paged<PlaylistItem>>(`/playlists/${id}/items`, {

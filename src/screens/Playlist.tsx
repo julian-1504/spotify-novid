@@ -101,6 +101,7 @@ export function Playlist() {
         count={rows.length}
         icon="note"
         empty={t.detail.emptyPlaylist}
+        forbidden={t.detail.foreignPlaylist}
       />
 
       {items.isFetchingNextPage && (

@@ -8,6 +8,8 @@
   --muted: #9aa3b2;
   --accent: #1db954;
   --danger: #ff6b6b;
+  /* „Das geht hier nicht", as opposed to „das ist kaputt". See .notice. */
+  --notice: #f5c451;
   --radius: 14px;
   /* Minimum comfortable tap size for small hands. */
   --tap: 52px;
@@ -140,6 +142,23 @@ h2 {
   background: #2a1c1c;
   border: 1px solid var(--danger);
   color: #ffd9d9;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+/*
+ * The same box in yellow, for something that did not go wrong.
+ *
+ * A playlist somebody else made is not a failure: the app reached Spotify,
+ * Spotify answered, and the answer was „not this one". Red says „kaputt" and
+ * sends a kid — or a parent — looking for a fault that is not there. Yellow
+ * says „so ist das hier", which is the truth and needs no fixing.
+ */
+.notice {
+  background: #2a2418;
+  border: 1px solid var(--notice);
+  color: #ffeec2;
   padding: 12px 14px;
   border-radius: var(--radius);
   margin-bottom: 16px;
