@@ -91,7 +91,13 @@ export interface Playlist {
    *
    * Either may also be absent altogether: a count is a fact to look up, never
    * one to assume, because assuming means telling a kid a full playlist has no
-   * songs in it.
+   * songs in it. A playlist this account does not own carries neither — see the
+   * header of api/catalog.ts.
+   *
+   * The detail response of an own playlist does carry its first hundred entries
+   * beside the count. Deliberately not typed, and deliberately not read: it is
+   * a second source for something `/playlists/{id}/items` already answers, and
+   * it is absent from exactly the playlists that would need it.
    */
   items?: { total: number };
   tracks?: { total: number };
@@ -143,6 +149,20 @@ export interface RecentlyPlayedItem {
   /** ISO 8601. */
   played_at: string;
   context: PlaybackContext | null;
+}
+
+/**
+ * What Spotify says is coming next on the device that is playing.
+ *
+ * The only way this app can show the songs of a playlist somebody else made:
+ * `/playlists/{id}/items` refuses them, but once the playlist is running the
+ * queue names them one after another. It follows that this is never a listing
+ * of a playlist — it is a listing of the next twenty things, whatever they came
+ * from, and it exists only while something is playing.
+ */
+export interface PlayerQueue {
+  currently_playing: Track | Episode | null;
+  queue: (Track | Episode)[];
 }
 
 export interface PlaylistItem {

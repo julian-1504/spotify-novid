@@ -117,6 +117,28 @@ export const t = {
     // exactly like the bug where the songs were there and simply not drawn.
     emptyPlaylist: 'Diese Playlist ist noch leer.',
     /*
+     * A playlist somebody else put together. Spotify refuses this app its songs
+     * — measured, see api/catalog.ts — but not the playlist itself, so the
+     * second sentence is the one that matters: „Abspielen" plays the whole
+     * thing, in order, and that was confirmed against a real speaker. Without
+     * it a kid reads this as „kaputt" and goes looking for another playlist.
+     */
+    foreignPlaylist:
+      'Diese Playlist hat jemand anderes gemacht, darum kann die App ihre Lieder nicht einfach so auflisten. Mit „Abspielen" läuft sie trotzdem — von vorne bis hinten.',
+    // What the play button leads to, said before it is pressed. The list really
+    // does only exist while the playlist is running, so this is an instruction
+    // and not an apology.
+    queueHint: 'Tippe auf „Abspielen" — dann siehst du hier, welche Lieder kommen.',
+    upNext: 'Was als Nächstes kommt',
+    /*
+     * The two ways through a playlist that can only be seen twenty songs at a
+     * time. They name what you get — the next or the previous screenful — and
+     * not what they do to the music, because the list is what a kid is looking
+     * at while pressing them.
+     */
+    skipUpcoming: 'Nächste Lieder',
+    backUpcoming: 'Vorherige Lieder',
+    /*
      * The same sentence for the other three lists, which used to say nothing at
      * all. Each names the thing it is empty of rather than sharing one „nichts
      * gefunden": a kid who reads „Von diesem Künstler gibt es hier nichts" knows

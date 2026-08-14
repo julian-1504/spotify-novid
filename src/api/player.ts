@@ -5,6 +5,7 @@ import type {
   CursorPaged,
   Device,
   PlaybackState,
+  PlayerQueue,
   RecentlyPlayedItem,
 } from './types';
 
@@ -52,6 +53,15 @@ interface PlayArgs {
   uris?: string[];
   /** Index into the context. */
   offsetPosition?: number;
+  /**
+   * Which track in the context to start on, named rather than counted.
+   *
+   * For a playlist whose entries this app is not allowed to read, a position is
+   * not something it can know — the songs arrive from the queue, which says
+   * what comes next and never where in the playlist it sits. The URI is the
+   * handle that works without that knowledge.
+   */
+  offsetUri?: string;
   positionMs?: number;
 }
 
@@ -60,12 +70,14 @@ export function play({
   contextUri,
   uris,
   offsetPosition,
+  offsetUri,
   positionMs,
 }: PlayArgs = {}): Promise<void> {
   const body: Record<string, unknown> = {};
   if (contextUri) body.context_uri = contextUri;
   if (uris) body.uris = uris;
   if (offsetPosition !== undefined) body.offset = { position: offsetPosition };
+  else if (offsetUri !== undefined) body.offset = { uri: offsetUri };
   if (positionMs !== undefined) body.position_ms = positionMs;
 
   return apiRequest('/me/player/play', {
@@ -94,6 +106,17 @@ export async function playEpisode(
     await play({ deviceId, contextUri: showUri });
   }
 }
+
+/**
+ * The next twenty things on the active device.
+ *
+ * Asked bare: no `additional_types`, because unlike `/me/player` this endpoint
+ * has always named episodes correctly, and unlike the playlist endpoints it
+ * takes no paging. Undefined when nothing is playing — there is no queue then,
+ * which is a different thing from an empty one.
+ */
+export const getQueue = () =>
+  apiRequest<PlayerQueue | undefined>('/me/player/queue');
 
 export const pause = (deviceId?: string) =>
   apiRequest('/me/player/pause', { method: 'PUT', query: { device_id: deviceId } });

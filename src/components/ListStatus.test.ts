@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { listState, type ListQuery } from './ListStatus';
+import { ApiError, PremiumRequiredError } from '../api/client';
 
 const query = (over: Partial<ListQuery> = {}): ListQuery => ({
   isPending: false,
@@ -11,6 +12,7 @@ const query = (over: Partial<ListQuery> = {}): ListQuery => ({
 const loading = query({ isPending: true });
 const paused = query({ isPending: true, isPaused: true });
 const failed = query({ error: new Error('Invalid limit') });
+const refused = query({ error: new ApiError(403, 'Insufficient client scope') });
 const fine = query();
 
 describe('listState', () => {
@@ -69,11 +71,28 @@ describe('listState', () => {
   });
 
   /**
+   * A playlist somebody else made, whose songs Spotify will not hand over. That
+   * is not a fault to report as one: „hat nicht geklappt" sends a parent looking
+   * for a problem that is not there, when the honest answer is that this list is
+   * not ours to read.
+   */
+  it('calls a refusal a refusal, not a general failure', () => {
+    expect(listState(refused, 0)).toBe('forbidden');
+  });
+
+  /** Same status, different answer — a free account is not a permissions problem. */
+  it('still calls the Premium refusal a general failure', () => {
+    expect(listState(query({ error: new PremiumRequiredError() }), 0)).toBe(
+      'error',
+    );
+  });
+
+  /**
    * Every no-rows state must answer something other than „ready", or the screen
    * shows a blank space with no explanation — which is where this started.
    */
   it('always has something to say when there are no rows', () => {
-    for (const list of [loading, paused, failed, fine]) {
+    for (const list of [loading, paused, failed, refused, fine]) {
       expect(listState(list, 0)).not.toBe('ready');
     }
   });

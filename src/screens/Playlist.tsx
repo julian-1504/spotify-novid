@@ -6,11 +6,13 @@ import {
   playlistEntry,
   playlistItemCount,
 } from '../api/catalog';
+import { isForbidden } from '../api/client';
 import { Artwork } from '../components/Artwork';
 import { EndOfList } from '../components/EndOfList';
 import { Icon } from '../components/Icon';
 import { ListStatus } from '../components/ListStatus';
 import { EpisodeRow, TrackRow } from '../components/Rows';
+import { Upcoming } from '../components/Upcoming';
 import { usePagedList } from '../hooks/usePagedList';
 import { usePlayer } from '../player/PlayerProvider';
 import { play } from '../api/player';
@@ -101,7 +103,12 @@ export function Playlist() {
         count={rows.length}
         icon="note"
         empty={t.detail.emptyPlaylist}
+        forbidden={t.detail.foreignPlaylist}
       />
+
+      {/* The songs of a playlist Spotify will not list for us, from the one
+          place it will name them: the queue, once the playlist is playing. */}
+      {isForbidden(items.error) && <Upcoming contextUri={playlist.data.uri} />}
 
       {items.isFetchingNextPage && (
         <div className="spinner">{t.app.loading}</div>

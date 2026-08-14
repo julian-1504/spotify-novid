@@ -8,6 +8,8 @@
   --muted: #9aa3b2;
   --accent: #1db954;
   --danger: #ff6b6b;
+  /* „Das geht hier nicht", as opposed to „das ist kaputt". See .notice. */
+  --notice: #f5c451;
   --radius: 14px;
   /* Minimum comfortable tap size for small hands. */
   --tap: 52px;
@@ -118,6 +120,17 @@ h2 {
   color: var(--muted);
 }
 
+/*
+ * A sentence under a list, about the list. Quieter than .empty and without its
+ * space, because whatever is above it is the point and this is a footnote.
+ */
+.end-note {
+  text-align: center;
+  padding: 8px 24px 16px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .empty {
   text-align: center;
   padding: 48px 24px;
@@ -140,6 +153,23 @@ h2 {
   background: #2a1c1c;
   border: 1px solid var(--danger);
   color: #ffd9d9;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+/*
+ * The same box in yellow, for something that did not go wrong.
+ *
+ * A playlist somebody else made is not a failure: the app reached Spotify,
+ * Spotify answered, and the answer was „not this one". Red says „kaputt" and
+ * sends a kid — or a parent — looking for a fault that is not there. Yellow
+ * says „so ist das hier", which is the truth and needs no fixing.
+ */
+.notice {
+  background: #2a2418;
+  border: 1px solid var(--notice);
+  color: #ffeec2;
   padding: 12px 14px;
   border-radius: var(--radius);
   margin-bottom: 16px;
@@ -415,7 +445,13 @@ h2 {
   margin-bottom: 8px;
 }
 
-.section-head .more {
+/*
+ * The quiet text control beside a list: „mehr ›" on a search shelf, and the two
+ * jumps under „Was als Nächstes kommt". Not scoped to .section-head any more,
+ * because it is the same control in both places and was only ever styled there
+ * because that was the only place it appeared.
+ */
+.more {
   background: none;
   color: var(--accent);
   font-size: 14px;
@@ -423,6 +459,33 @@ h2 {
   padding: 0;
   min-height: var(--tap);
   white-space: nowrap;
+}
+
+/* Nothing to press once the list is at its end; say so rather than mislead. */
+.more:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+/*
+ * Back and forward under a list that can only ever be seen twenty songs at a
+ * time, one to each edge of the screen — where a thumb already is, and how a
+ * pair like this reads everywhere else.
+ */
+.list-nav {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+/*
+ * Pinned right on its own rather than by spacing the row out, because „nächste"
+ * is often the only button there and a lone one must not sit where „vorherige"
+ * belongs.
+ */
+.list-nav .next {
+  margin-left: auto;
 }
 
 .rows {

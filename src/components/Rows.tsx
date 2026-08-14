@@ -110,12 +110,22 @@ export function TrackRow({
   const isCurrent = state?.item?.id === track.id;
   const playable = track.is_playable !== false && Boolean(selectedDevice);
 
+  /*
+   * Three ways to start a song, in order of how much is known about it.
+   *
+   * A position in its context is best — it is what keeps the rest of the album
+   * or playlist playing after it. A song from the queue of a playlist this app
+   * may not read has no position to give, so it names itself instead and the
+   * playlist goes on from there just the same. A song with no context at all —
+   * a search result — is played on its own, which is all it can be.
+   */
   const onPlay = () =>
-    void command((deviceId) =>
-      contextUri && index !== undefined
-        ? play({ deviceId, contextUri, offsetPosition: index })
-        : play({ deviceId, uris: [track.uri] }),
-    );
+    void command((deviceId) => {
+      if (contextUri && index !== undefined)
+        return play({ deviceId, contextUri, offsetPosition: index });
+      if (contextUri) return play({ deviceId, contextUri, offsetUri: track.uri });
+      return play({ deviceId, uris: [track.uri] });
+    });
 
   return (
     <button

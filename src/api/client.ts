@@ -33,6 +33,21 @@ export class PremiumRequiredError extends ApiError {
   }
 }
 
+/**
+ * The refusal that means „this is not yours to read", as opposed to „this
+ * account is not Premium".
+ *
+ * `PremiumRequiredError` extends `ApiError` with the same 403, so a bare status
+ * check reads a free account as a permissions problem — and every caller of
+ * this asks in order to try something *else* instead, which for a free account
+ * would fail exactly the same way. The `instanceof` exclusion is the whole
+ * point of the function and the reason it is not written inline.
+ */
+export const isForbidden = (error: unknown): boolean =>
+  error instanceof ApiError &&
+  error.status === 403 &&
+  !(error instanceof PremiumRequiredError);
+
 /** Set by the app so the client can drop the session on a dead grant. */
 let onAuthExpired: (() => void) | null = null;
 export function setAuthExpiredHandler(fn: () => void): void {

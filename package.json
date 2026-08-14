@@ -11,6 +11,7 @@
     "test": "vitest run",
     "spike": "node scripts/spike.mjs",
     "spike:player": "node scripts/spike-player.mjs",
+    "spike:playlist": "node scripts/spike-playlist.mjs",
     "check:novideo": "node scripts/check-no-video.mjs"
   },
   "dependencies": {

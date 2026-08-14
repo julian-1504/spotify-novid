@@ -611,6 +611,7 @@ at once. Worth deploying at a time when you are around to type passwords.
 | `npm run check:novideo` | Fails if any video surface is in `src/` or `dist/` |
 | `npm run spike -- <client-id>` | Step-0 account/device/podcast checks |
 | `npm run spike:player -- <client-id> <episode-id>` | Step-0 check: can the phone itself be the playback device? |
+| `npm run spike:playlist -- <client-id>` | What this account may read of a playlist it does not own. Finds one to compare by searching; name your own with ids, `spotify:` URIs or share links |
 | `node scripts/make-icons.mjs` | Regenerate the launcher icons, both the PWA's and the Android app's |
 | `cd android && ./gradlew assembleRelease` | Build the Android APK locally — see [The Android app](#the-android-app) |
 | Actions → **Build the Android app** | Publish an APK to Releases, preview or release — see [Get it from GitHub](#get-it-from-github) |
@@ -627,3 +628,16 @@ at once. Worth deploying at a time when you are around to type passwords.
 - **Built against the February 2026 API.** Batch fetch endpoints, browse, artist
   top tracks and `/playlists/{id}/tracks` are gone; search caps at 10 results per
   page. Don't reintroduce them from older documentation.
+- **A playlist this account does not own cannot be listed at all — but it can be
+  played.** `/playlists/{id}/items` answers a bare 403 for one it neither owns
+  nor collaborates on, and `/playlists/{id}` then arrives with no `items` and no
+  `tracks`: not the songs, not even a count. Neither `market`, nor `fields`, nor
+  `additional_types` changes that on either endpoint. Playback is untouched —
+  `context_uri` plus an `offset.position` plays such a playlist in order,
+  `/me/player/queue` names the next twenty songs once it is running, and
+  `offset.uri` jumps to one of them without losing the playlist. So the screen
+  says what it cannot do, leaves *Abspielen* working, and lists the queue behind
+  it as „Was als Nächstes kommt" — a list on the wrong side of the play button,
+  which is the only side available. All of this was measured, not read:
+  `npm run spike:playlist` re-runs the whole check, and is the thing to run
+  before assuming any of it still holds.
