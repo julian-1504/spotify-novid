@@ -125,6 +125,11 @@ export const t = {
      */
     foreignPlaylist:
       'Diese Playlist hat jemand anderes gemacht, darum kann die App ihre Lieder nicht einfach so auflisten. Mit „Abspielen" läuft sie trotzdem — von vorne bis hinten.',
+    // What the play button leads to, said before it is pressed. The list really
+    // does only exist while the playlist is running, so this is an instruction
+    // and not an apology.
+    queueHint: 'Tippe auf „Abspielen" — dann siehst du hier, welche Lieder kommen.',
+    upNext: 'Was als Nächstes kommt',
     /*
      * The same sentence for the other three lists, which used to say nothing at
      * all. Each names the thing it is empty of rather than sharing one „nichts

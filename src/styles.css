@@ -120,6 +120,17 @@ h2 {
   color: var(--muted);
 }
 
+/*
+ * A sentence under a list, about the list. Quieter than .empty and without its
+ * space, because whatever is above it is the point and this is a footnote.
+ */
+.end-note {
+  text-align: center;
+  padding: 8px 24px 16px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .empty {
   text-align: center;
   padding: 48px 24px;
