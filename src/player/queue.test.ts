@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { upcomingIn } from './queue';
+import { skipTarget, upcomingIn } from './queue';
 import type { Episode, PlaybackState, PlayerQueue, Track } from '../api/types';
 
 const song = (id: string) =>
   ({ id, name: id, uri: `spotify:track:${id}`, type: 'track' }) as unknown as Track;
+
+const episode = (id: string) =>
+  ({
+    id,
+    name: id,
+    uri: `spotify:episode:${id}`,
+    type: 'episode',
+  }) as unknown as Episode;
 
 const playing = (contextUri: string | null): PlaybackState =>
   ({
@@ -52,5 +60,36 @@ describe('upcomingIn', () => {
     const next = upcomingIn(PLAYLIST, playing(PLAYLIST), queue([broken, song('a')]));
 
     expect(next.map((s) => s.id)).toEqual(['a']);
+  });
+});
+
+/**
+ * The jump that walks a playlist twenty songs at a time — the only way through
+ * one the app is not allowed to list.
+ */
+describe('skipTarget', () => {
+  it('takes the last song on screen', () => {
+    expect(skipTarget([song('a'), song('b'), song('c')])?.id).toBe('c');
+  });
+
+  it('takes the only song when that is all there is', () => {
+    expect(skipTarget([song('a')])?.id).toBe('a');
+  });
+
+  it('has nothing to skip to in an empty list', () => {
+    expect(skipTarget([])).toBeUndefined();
+  });
+
+  /**
+   * The reason this is not simply „the last one". A playlist cannot be started
+   * at an episode — the API refuses episode URIs as a context — so the jump
+   * aims at the last thing it can actually land on.
+   */
+  it('skips back past an episode at the end to the last song', () => {
+    expect(skipTarget([song('a'), song('b'), episode('e1')])?.id).toBe('b');
+  });
+
+  it('has nothing to skip to when nothing coming is a song', () => {
+    expect(skipTarget([episode('e1'), episode('e2')])).toBeUndefined();
   });
 });

@@ -36,3 +36,24 @@ export function upcomingIn(
   if (!contextUri || state?.context?.uri !== contextUri) return [];
   return (queue?.queue ?? []).filter((entry) => Boolean(entry?.uri));
 }
+
+/**
+ * Where „diese Lieder überspringen" lands: the last song on screen.
+ *
+ * Twenty is all the queue ever says, so jumping to the end of it and letting
+ * Spotify name the next twenty is how a kid gets through a playlist this app
+ * may not list. Pressed again and again, it walks the whole thing.
+ *
+ * The last *song*, not simply the last entry. An episode cannot be started
+ * inside a playlist — the API refuses episode URIs as a context, which is why
+ * `playEpisode` exists at all — so a jump has to aim at something it can
+ * actually land on. Nothing to land on means no button, rather than a button
+ * that does nothing.
+ */
+export function skipTarget(upcoming: (Track | Episode)[]): Track | undefined {
+  for (let i = upcoming.length - 1; i >= 0; i -= 1) {
+    const entry = upcoming[i];
+    if (entry?.type === 'track') return entry;
+  }
+  return undefined;
+}

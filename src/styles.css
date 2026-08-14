@@ -445,7 +445,13 @@ h2 {
   margin-bottom: 8px;
 }
 
-.section-head .more {
+/*
+ * The quiet text control beside a list: „mehr ›" on a search shelf, and the two
+ * jumps under „Was als Nächstes kommt". Not scoped to .section-head any more,
+ * because it is the same control in both places and was only ever styled there
+ * because that was the only place it appeared.
+ */
+.more {
   background: none;
   color: var(--accent);
   font-size: 14px;
@@ -453,6 +459,33 @@ h2 {
   padding: 0;
   min-height: var(--tap);
   white-space: nowrap;
+}
+
+/* Nothing to press once the list is at its end; say so rather than mislead. */
+.more:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+/*
+ * Back and forward under a list that can only ever be seen twenty songs at a
+ * time, one to each edge of the screen — where a thumb already is, and how a
+ * pair like this reads everywhere else.
+ */
+.list-nav {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+/*
+ * Pinned right on its own rather than by spacing the row out, because „nächste"
+ * is often the only button there and a lone one must not sit where „vorherige"
+ * belongs.
+ */
+.list-nav .next {
+  margin-left: auto;
 }
 
 .rows {

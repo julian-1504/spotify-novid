@@ -131,6 +131,14 @@ export const t = {
     queueHint: 'Tippe auf „Abspielen" — dann siehst du hier, welche Lieder kommen.',
     upNext: 'Was als Nächstes kommt',
     /*
+     * The two ways through a playlist that can only be seen twenty songs at a
+     * time. They name what you get — the next or the previous screenful — and
+     * not what they do to the music, because the list is what a kid is looking
+     * at while pressing them.
+     */
+    skipUpcoming: 'Nächste Lieder',
+    backUpcoming: 'Vorherige Lieder',
+    /*
      * The same sentence for the other three lists, which used to say nothing at
      * all. Each names the thing it is empty of rather than sharing one „nichts
      * gefunden": a kid who reads „Von diesem Künstler gibt es hier nichts" knows
