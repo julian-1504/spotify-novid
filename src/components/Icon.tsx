@@ -236,6 +236,13 @@ const GLYPHS = {
     </>
   ),
 
+  // The sleep timer. A crescent rather than a clock face: at 18px in the bar a
+  // clock is a circle with two smudges in it, and half the app's other glyphs
+  // are circles already.
+  moon: (
+    <path d="M20.6 14.7A8.7 8.7 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3Z" />
+  ),
+
   check: <path d="m4.5 12.5 5 5 10-11" strokeWidth={2.4} />,
 
   close: <path d="M6.2 6.2 17.8 17.8M17.8 6.2 6.2 17.8" strokeWidth={2.4} />,
