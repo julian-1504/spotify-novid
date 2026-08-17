@@ -413,7 +413,8 @@ already. Anyone who installs it still has to sign in with their own account.
 
 Both channels build the **release** variant, and the workflow refuses to publish
 anything that fails a check on the built APK: debuggable, unsigned, signed with
-the debug key, carrying any permission besides `INTERNET`, not `targetSdk 34`,
+the debug key, carrying any permission outside the five it is allowed
+(`INTERNET` plus the four `PlaybackService` needs), not `targetSdk 34`,
 wrong package, or a `SITE_URL` that does not match what was asked for. Debuggable
 is the one that matters most — `adb run-as` into a debuggable app reads its data
 directory, and that is where the WebView keeps a refresh token per account.
