@@ -9,6 +9,11 @@ for why that wrapper is not optional there.
 It is a **Spotify Connect remote control**. It never handles an audio or video
 stream itself — it browses the catalogue and tells a speaker what to play.
 
+> **How it is put together:** [ARCHITECTURE.md](ARCHITECTURE.md) — the system
+> structure, the provider stack, the auth and playback flows, the four no-video
+> layers and the JS↔Kotlin bridge, with diagrams. This file stays the operator's
+> manual: setup, deployment, and why each decision was made.
+
 ## How "no video" is guaranteed
 
 Four layers. Read the fourth before trusting the first — since the app gained
