@@ -22,7 +22,13 @@ import {
 } from '../devices/sticky';
 import * as webPlayback from './webPlayback';
 import { watchDocument, type Violation } from './domGuard';
-import { bindHandlers, publishMetadata } from './mediaSession';
+import { bindHandlers, publishMetadata, type MediaSessionHandlers } from './mediaSession';
+import {
+  bindHostCommands,
+  hostStopped,
+  publishToHost,
+  snapshotOfSelf,
+} from './nativeHost';
 import { describeFailure, type SelfFailure } from './selfFailure';
 import { t } from '../strings';
 import type { Device, PlaybackState } from '../api/types';
@@ -302,17 +308,43 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     publishMetadata(stateQuery.data);
   }, [stateQuery.data]);
 
-  useEffect(
-    () =>
-      bindHandlers({
-        play: () => void command(player.resume),
-        pause: () => void command(player.pause),
-        next: () => void command(player.next),
-        previous: () => void command(player.previous),
-        seek: (ms) => void command((id) => player.seek(ms, id)),
-      }),
+  /**
+   * The five transport commands, in one place because three different surfaces
+   * offer them: the app's own bar, the lock screen in a browser, and the Android
+   * notification. They must not drift apart.
+   */
+  const transport = useMemo<MediaSessionHandlers>(
+    () => ({
+      play: () => void command(player.resume),
+      pause: () => void command(player.pause),
+      next: () => void command(player.next),
+      previous: () => void command(player.previous),
+      seek: (ms) => void command((id) => player.seek(ms, id)),
+    }),
     [command],
   );
+
+  useEffect(() => bindHandlers(transport), [transport]);
+  useEffect(() => bindHostCommands(transport), [transport]);
+
+  /**
+   * The Android wrapper's media notification, and with it the foreground service
+   * that stops Android freezing this app while the screen is off. Fed from the
+   * SDK's own events rather than from `stateQuery`, which is deliberately not
+   * polled while the app is hidden — that is precisely when a playlist moves on
+   * to the next song and the notification has to follow it.
+   *
+   * Only while this phone is the player. A box that is playing needs none of
+   * this: it keeps going whatever Android does to this app, and a notification
+   * claiming otherwise would be a lie on the lock screen.
+   */
+  useEffect(() => {
+    if (!selfSelected) {
+      hostStopped();
+      return;
+    }
+    return webPlayback.onStateChange((self) => publishToHost(snapshotOfSelf(self)));
+  }, [selfSelected]);
 
   const value = useMemo<PlayerValue>(
     () => ({

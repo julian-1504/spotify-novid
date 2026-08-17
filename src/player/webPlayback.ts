@@ -42,6 +42,25 @@ export type WebPlaybackFailure =
   | 'offline'
   | 'timeout';
 
+/**
+ * What the SDK says about this phone's own playback, in this app's vocabulary.
+ *
+ * Worth having beside the polled `/me/player` state rather than instead of it:
+ * this arrives from the page's own SDK the instant anything changes, including
+ * while the app is hidden and the poller is deliberately switched off. It is how
+ * the Android notification follows a track that Spotify advanced by itself.
+ */
+export interface SelfState {
+  paused: boolean;
+  positionMs: number;
+  durationMs: number;
+  /** Identifies the track, so a listener can tell a new song from a seek. */
+  uri: string;
+  title: string;
+  artist: string;
+  artworkUrl?: string;
+}
+
 export class WebPlaybackError extends Error {
   readonly kind: WebPlaybackFailure;
   constructor(kind: WebPlaybackFailure, message: string) {
@@ -73,6 +92,74 @@ declare global {
     Spotify?: SpotifyNamespace;
     onSpotifyWebPlaybackSDKReady?: () => void;
   }
+}
+
+/**
+ * The shape of the SDK's `player_state_changed` payload, trimmed to what is
+ * read here. Everything is optional because it is somebody else's object: a
+ * missing field must cost a line of the notification, never the listener.
+ */
+interface SdkPlaybackState {
+  paused?: boolean;
+  position?: number;
+  duration?: number;
+  track_window?: {
+    current_track?: {
+      uri?: string;
+      name?: string;
+      duration_ms?: number;
+      artists?: { name?: string }[];
+      album?: { images?: { url?: string; width?: number }[] };
+    } | null;
+  };
+}
+
+const stateListeners = new Set<(state: SelfState | null) => void>();
+
+/**
+ * Subscribe to what this phone is playing. Returns an unsubscribe function.
+ *
+ * Fires with null when there is nothing: no track, or playback that has moved
+ * to another device. Safe to call before `boot()` — the SDK is wired to these
+ * listeners when it starts, not the other way round.
+ */
+export function onStateChange(cb: (state: SelfState | null) => void): () => void {
+  stateListeners.add(cb);
+  return () => {
+    stateListeners.delete(cb);
+  };
+}
+
+function emit(state: SelfState | null): void {
+  for (const cb of stateListeners) cb(state);
+}
+
+/** The biggest cover the SDK offers: this feeds a full-width notification. */
+function largestImage(images: { url?: string; width?: number }[] | undefined): string | undefined {
+  let best: { url?: string; width?: number } | undefined;
+  for (const image of images ?? []) {
+    if (!image?.url) continue;
+    if (!best || (image.width ?? 0) > (best.width ?? 0)) best = image;
+  }
+  return best?.url;
+}
+
+function describe(raw: SdkPlaybackState | null): SelfState | null {
+  const track = raw?.track_window?.current_track;
+  if (!raw || !track) return null;
+
+  return {
+    paused: raw.paused ?? false,
+    positionMs: raw.position ?? 0,
+    durationMs: raw.duration ?? track.duration_ms ?? 0,
+    uri: track.uri ?? '',
+    title: track.name ?? '',
+    artist: (track.artists ?? [])
+      .map((a) => a?.name)
+      .filter((name): name is string => !!name)
+      .join(', '),
+    artworkUrl: largestImage(track.album?.images),
+  };
 }
 
 let scriptPromise: Promise<void> | null = null;
@@ -187,6 +274,18 @@ export function boot(onFailure?: (err: WebPlaybackError) => void): Promise<strin
     instance.addListener('authentication_error', fatal('auth') as never);
     instance.addListener('account_error', fatal('premium') as never);
 
+    /*
+     * Not a fatal condition and deliberately not treated as one: this is the
+     * live report of what the phone is playing, and the only one that keeps
+     * arriving while the app is hidden. `/me/player` stops being polled then, on
+     * purpose, so without this nothing would notice Spotify moving the playlist
+     * on to the next song — which is exactly the moment the Android notification
+     * has to be right.
+     */
+    instance.addListener('player_state_changed', ((raw: SdkPlaybackState | null) => {
+      emit(describe(raw));
+    }) as never);
+
     const id = await new Promise<string>((resolve, reject) => {
       const timer = setTimeout(
         () => reject(new WebPlaybackError('timeout', 'the SDK never became ready')),
@@ -244,4 +343,8 @@ export function teardown(): void {
   player = null;
   deviceId = null;
   bootPromise = null;
+  // Said out loud rather than left to be inferred: a disconnected SDK sends no
+  // further state, so anything mirroring this phone's playback — the Android
+  // notification above all — would otherwise sit on the last song for ever.
+  emit(null);
 }
