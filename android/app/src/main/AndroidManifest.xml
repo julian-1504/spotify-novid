@@ -3,6 +3,24 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+        Everything below exists for one reason: when this phone *is* the box, the
+        music has to survive the screen going off.
+
+        The Web Playback SDK runs inside the WebView, so Spotify's next track is
+        fetched and decoded by this app's own processes. Without a foreground
+        service the app is a cached process the moment the Activity stops —
+        frozen, network-deferred, killable — and playback died at the first track
+        boundary. FOREGROUND_SERVICE_MEDIA_PLAYBACK is the Android 14 half of the
+        same declaration; WAKE_LOCK keeps the CPU (and the wifi radio) up across
+        that boundary; POST_NOTIFICATIONS only decides whether the controls are
+        *visible*, never whether the music plays.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -33,6 +51,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            Not exported: nothing outside this app has any business starting it,
+            and the only thing that ever does is the page in the WebView saying
+            that music is playing.
+        -->
+        <service
+            android:name=".PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 
 </manifest>

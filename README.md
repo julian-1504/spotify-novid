@@ -517,6 +517,12 @@ comments say why. Two are worth repeating here:
 - **`PROTECTED_MEDIA_ID` is granted** in `onPermissionRequest`. Spotify streams
   are DRM-protected, and a WebView denies Widevine unless asked; without it the
   phone quietly stops working as a box. Nothing else is granted.
+- **The app is never allowed to become a cached process while it plays.**
+  `PlaybackService` is a foreground service of type `mediaPlayback`, and
+  `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)` stops Android
+  waiving the renderer's priority the moment the WebView goes invisible. Both
+  exist for the same reason: when this phone is the box, the Web Playback SDK
+  runs *in the page*, so a frozen app is a stopped playlist. See below.
 
 The no-video guarantee is unchanged by any of this: `npm run check:novideo` and
 `src/player/domGuard.ts` cover the same surface, and the wrapper adds no content
@@ -541,7 +547,7 @@ Everything downstream is unchanged: the SDK device is driven through the same
 `/me/player/*` endpoints as any speaker, so `playEpisode`, seeking and the
 pollers needed no changes at all.
 
-Four things worth knowing:
+Five things worth knowing:
 
 - **The pairing is a one-off a kid must be told about.** Until the phone is
   paired to a box, the sound comes out of the phone. The now-playing bar says so
@@ -556,6 +562,16 @@ Four things worth knowing:
 - **The chosen phone is stored as a sentinel**, not as a device id. The SDK
   mints a new id every session, so storing the live one would have the
   miss-counter forget the choice about thirty seconds into every launch.
+- **In the Android app a media notification appears while this phone plays** —
+  cover, title and Zurück / Pause / Weiter, on the lock screen too. It is not
+  decoration. The SDK lives in the page, so with the screen off Android used to
+  freeze the app at the first track boundary: the song finished, the next one
+  never started, and a kid had to unlock and press play for every single track.
+  The notification is the visible half of the foreground service that prevents
+  that (`android/…/PlaybackService.kt`), and the page's half is
+  `src/player/nativeHost.ts`, fed by the SDK's own `player_state_changed` —
+  `/me/player` is deliberately not polled while the app is hidden. In a browser
+  none of it exists and nothing changes.
 
 ## The Hilfe tab
 

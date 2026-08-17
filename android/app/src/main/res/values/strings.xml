@@ -6,4 +6,13 @@
 <resources>
     <string name="app_name">Klangkiste</string>
     <string name="no_browser">Dafür ist kein Browser da.</string>
+
+    <!-- The media notification: what is playing, and the buttons on it. -->
+    <string name="channel_playback">Wiedergabe</string>
+    <string name="channel_playback_description">Zeigt, was gerade läuft, und hält die Musik an, wenn der Bildschirm aus ist.</string>
+    <string name="playback_unknown_title">Klangkiste</string>
+    <string name="playback_play">Abspielen</string>
+    <string name="playback_pause">Pause</string>
+    <string name="playback_next">Weiter</string>
+    <string name="playback_previous">Zurück</string>
 </resources>

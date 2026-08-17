@@ -1,9 +1,13 @@
 package de.julian.klangkiste
 
+import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.PermissionRequest
@@ -31,9 +35,22 @@ import android.widget.Toast
  * from [BuildConfig.SITE_URL], so a Cloudflare deploy updates this app too and
  * a content change never needs a new APK.
  */
-class MainActivity : Activity() {
+class MainActivity : Activity(), PlaybackService.Transport {
 
     private lateinit var webView: WebView
+
+    /** False once the WebView is gone, so a late notification tap finds nothing. */
+    private var alive = false
+
+    private val siteHost: String by lazy { Uri.parse(BuildConfig.SITE_URL).host.orEmpty() }
+
+    /**
+     * Whether the page currently loaded is our own deployment, and may therefore
+     * use [PlaybackBridge]. See the guard's own comment: the navigation allowlist
+     * below admits Spotify's sign-in hosts, and they are not offered the bridge.
+     */
+    @Volatile
+    private var pageTrusted = false
 
     /**
      * Main-frame navigation is confined to these hosts. Everything else is
@@ -57,7 +74,7 @@ class MainActivity : Activity() {
      */
     private val allowedHosts: Set<String> by lazy {
         setOf(
-            Uri.parse(BuildConfig.SITE_URL).host.orEmpty(),
+            siteHost,
             "accounts.spotify.com",
             "challenge.spotify.com",
         )
@@ -69,8 +86,31 @@ class MainActivity : Activity() {
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
         webView = WebView(this)
+        alive = true
         setContentView(webView)
         configure(webView.settings)
+
+        /*
+         * The renderer keeps this app's own importance instead of having it
+         * waived the moment the WebView stops being visible, which is the
+         * default. That default is written for a WebView showing a page; ours is
+         * running a music player, and when the screen went off the process
+         * holding the Web Playback SDK was demoted mid-song. Together with
+         * PlaybackService — which keeps the app itself out of the cached bucket
+         * — this is what lets a playlist cross a track boundary in a pocket.
+         */
+        webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
+
+        // Playing to this phone means the notification is the only transport a
+        // kid can reach. Refusing the permission costs the controls, never the
+        // music: the service runs either way.
+        askForNotifications()
+
+        PlaybackService.transport = this
+        webView.addJavascriptInterface(
+            PlaybackBridge(applicationContext) { pageTrusted },
+            "Klangkiste",
+        )
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
@@ -82,6 +122,10 @@ class MainActivity : Activity() {
                 if (request.url.host.orEmpty() in allowedHosts) return false
                 openExternally(request.url)
                 return true
+            }
+
+            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                pageTrusted = Uri.parse(url).host == siteHost
             }
         }
 
@@ -135,6 +179,45 @@ class MainActivity : Activity() {
         settings.allowContentAccess = false
     }
 
+    private fun askForNotifications() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+    }
+
+    /*
+     * The notification's buttons, and a Bluetooth box's own, arrive here from
+     * PlaybackService and are handed to the page — which already knows how to
+     * send a transport command to whatever device is selected. Nothing here
+     * talks to Spotify; that would be a second player disagreeing with the one
+     * on screen.
+     */
+
+    override fun play() = command("play")
+
+    override fun pause() = command("pause")
+
+    override fun next() = command("next")
+
+    override fun previous() = command("previous")
+
+    override fun seekTo(positionMs: Long) = command("seek", positionMs.toString())
+
+    private fun command(name: String, argument: String? = null) {
+        val args = if (argument == null) "'$name'" else "'$name',$argument"
+        runOnUiThread {
+            if (!alive) return@runOnUiThread
+            webView.evaluateJavascript(
+                "window.__klangkiste && window.__klangkiste.command($args)",
+                null,
+            )
+        }
+    }
+
     private fun openExternally(url: Uri) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -161,10 +244,23 @@ class MainActivity : Activity() {
      * Note what is deliberately absent: no `webView.onPause()` and no
      * `pauseTimers()`. When this phone *is* the box, the kid presses home or
      * locks the screen and the podcast has to keep playing.
+     *
+     * Not pausing was never enough on its own, though — Android stops a cached
+     * app whether or not it asked to be stopped. PlaybackService and the
+     * renderer priority set in [onCreate] are the other two thirds of that;
+     * this is where all three end, because the page dies with the WebView and a
+     * notification for music that cannot play is a lie.
      */
     override fun onDestroy() {
+        alive = false
+        PlaybackService.transport = null
+        PlaybackService.stop()
         (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val REQUEST_NOTIFICATIONS = 1
     }
 }
