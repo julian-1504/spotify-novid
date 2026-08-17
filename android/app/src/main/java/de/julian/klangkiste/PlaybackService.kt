@@ -196,7 +196,14 @@ class PlaybackService : Service() {
      */
     fun isForegrounded(): Boolean = foregrounded
 
-    /** Playback is over. Drops the notification and the service with it. */
+    /**
+     * This phone is not the box any more. Drops the notification and the service
+     * with it.
+     *
+     * Not what the end of a song means, and not what a lull means either — see
+     * the class comment. Only a box being picked elsewhere, the DOM guard, a
+     * swipe, or the Activity going away get this far.
+     */
     fun finish() {
         finishing = true
         // Straight away, and on this thread rather than the main one: everything
@@ -494,7 +501,7 @@ class PlaybackService : Service() {
         fun channelImportance(manager: NotificationManager): Int =
             manager.getNotificationChannel(CHANNEL_ID)?.importance ?: -1
 
-        /** Playback is over, or the app is going away. */
+        /** This phone has stopped being the box, or the app is going away. */
         fun stop() {
             instance?.finish()
         }

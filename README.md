@@ -542,12 +542,15 @@ comments say why. Two are worth repeating here:
 - **`PROTECTED_MEDIA_ID` is granted** in `onPermissionRequest`. Spotify streams
   are DRM-protected, and a WebView denies Widevine unless asked; without it the
   phone quietly stops working as a box. Nothing else is granted.
-- **The app is never allowed to become a cached process while it plays.**
-  `PlaybackService` is a foreground service of type `mediaPlayback`, and
-  `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)` stops Android
-  waiving the renderer's priority the moment the WebView goes invisible. Both
-  exist for the same reason: when this phone is the box, the Web Playback SDK
-  runs *in the page*, so a frozen app is a stopped playlist. See below.
+- **The app is never allowed to become a cached process while this phone is the
+  chosen box.** `PlaybackService` is a foreground service of type `mediaPlayback`,
+  and `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)` stops
+  Android waiving the renderer's priority the moment the WebView goes invisible.
+  Both exist for the same reason: when this phone is the box, the Web Playback
+  SDK runs *in the page*, so a frozen app is a stopped playlist. Note that it is
+  the *choice* and not the playing that holds the service open — Android only
+  grants one while the app is visible, so it cannot be reached for later. See
+  below.
 
 The no-video guarantee is unchanged by any of this: `npm run check:novideo` and
 `src/player/domGuard.ts` cover the same surface, and the wrapper adds no content
@@ -616,8 +619,8 @@ common faults without fetching an adult. The third nav tab has:
 
 - a **live status panel** — Internet / Angemeldet / Box as ✅ or ❌, plus a
   „Nochmal suchen“ button that refetches the device list;
-- **eight troubleshooting topics** (`src/help/topics.ts`), each a short intro and
-  3–4 numbered steps.
+- **ten troubleshooting topics** (`src/help/topics.ts`), each a short intro and
+  three to seven numbered steps.
 
 Error states deep-link into the matching topic via `/hilfe?thema=<id>`, so a kid
 who taps „Was kann ich tun?“ in the empty speaker picker lands on the answer
@@ -659,7 +662,7 @@ at once. Worth deploying at a time when you are around to type passwords.
 |---|---|
 | `npm run dev` | Dev server on `127.0.0.1:5173` |
 | `npm run build` | Production build into `dist/` |
-| `npm test` | Unit tests (device allowlist) |
+| `npm test` | Unit tests — the device allowlist and sticky choice, the API and paging, the no-video DOM guard, the sleep timer, the Android bridge, the Hilfe deep links |
 | `npm run check:novideo` | Fails if any video surface is in `src/` or `dist/` |
 | `npm run spike -- <client-id>` | Step-0 account/device/podcast checks |
 | `npm run spike:player -- <client-id> <episode-id>` | Step-0 check: can the phone itself be the playback device? |
@@ -667,6 +670,7 @@ at once. Worth deploying at a time when you are around to type passwords.
 | `node scripts/make-icons.mjs` | Regenerate the launcher icons, both the PWA's and the Android app's |
 | `cd android && ./gradlew assembleRelease` | Build the Android APK locally — see [The Android app](#the-android-app) |
 | Actions → **Build the Android app** | Publish an APK to Releases, preview or release — see [Get it from GitHub](#get-it-from-github) |
+| `adb logcat -s Klangkiste` | What the wrapper's playback plumbing is doing, if a phone is on a USB cable — see [When the music stops with the screen off](#when-the-music-stops-with-the-screen-off) |
 
 ## Things worth knowing
 

@@ -83,9 +83,10 @@ export const inWrapper = (): boolean => !!bridge();
 /**
  * What the notification should show, from what the SDK last reported.
  *
- * Null in, null out: no state and no track are both "nothing is playing here",
- * which is the one case that must take the notification away rather than freeze
- * it on a song that ended.
+ * Null in, null out — but a null here means only "the SDK has nothing to report
+ * right now", which is what it says at every track boundary. It is *not* the end
+ * of anything: see [idleFrom] for what a caller does with it, and [hostStopped]
+ * for the one thing that does take the notification away.
  */
 export function snapshotOfSelf(state: SelfState | null): HostSnapshot | null {
   if (!state) return null;
@@ -133,7 +134,14 @@ export function publishToHost(snapshot: HostSnapshot | null): void {
   }
 }
 
-/** Nothing is playing on this phone any more. */
+/**
+ * This phone is not the box any more — take the notification down.
+ *
+ * Emphatically not for "nothing is playing right now": that is [idleFrom], and
+ * confusing the two is the bug this seam was built wrong around the first time.
+ * Two callers only, both deliberate: another box being chosen, and the DOM guard
+ * tripping.
+ */
 export const hostStopped = (): void => publishToHost(null);
 
 /**

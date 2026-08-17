@@ -88,6 +88,12 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Tippe unten auf die Zeile mit dem Lautsprecher.',
       'Wähle ganz oben „Dieses Handy“ aus.',
       'Jetzt kommt der Ton aus dem Handy. Damit ihn alle im Zimmer hören, verbinde das Handy per Bluetooth mit der Box.',
+      // The notification now goes up the moment the phone is chosen, before a
+      // note has been played — that is what holds the foreground service open,
+      // and Android only hands one out while the app is on screen. So a kid sees
+      // „Klangkiste“ sitting there with nothing playing and needs to be told
+      // that it belongs, and that swiping it away costs them the buttons.
+      'Oben erscheint eine Anzeige „Klangkiste“, sobald du das Handy ausgewählt hast — auch wenn noch nichts läuft. Sie gehört dazu: wische sie nicht weg, denn darüber bedienst du die Musik.',
       'Der Ton geht weiter, wenn du das Handy sperrst. Zum Pausieren tippst du auf dem Sperrbildschirm.',
     ],
   },
