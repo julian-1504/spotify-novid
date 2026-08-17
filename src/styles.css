@@ -149,6 +149,31 @@ h2 {
   color: var(--accent);
 }
 
+/*
+ * A block of app diagnostics on the adults' screen — see PlaybackStatus.tsx.
+ * Set off from the page rather than styled to be noticed: nothing here is
+ * wrong most of the time, and a kid who lands on /konto should read past it.
+ */
+.panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: 24px 0;
+}
+
+.panel h2 {
+  margin-top: 0;
+}
+
+.panel p {
+  margin: 8px 0;
+}
+
+/* „Das stimmt so nicht", one step below .error, which is for a real failure. */
+.warn {
+  color: var(--notice);
+}
+
 .error {
   background: #2a1c1c;
   border: 1px solid var(--danger);

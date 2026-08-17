@@ -1,6 +1,8 @@
 package de.julian.klangkiste
 
 import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import android.webkit.JavascriptInterface
 import org.json.JSONObject
 
@@ -30,15 +32,20 @@ class PlaybackBridge(
     /** `{playing, title, artist, artworkUrl, durationMs, positionMs}` as JSON. */
     @JavascriptInterface
     fun publish(json: String) {
-        if (!trusted()) return
-
-        val report = try {
-            JSONObject(json)
-        } catch (_: Exception) {
-            // Nothing the page could send is worth crashing the app it is in.
+        if (!trusted()) {
+            Diagnostics.failed("publish", "refused: ${Diagnostics.pageHost} is not the site")
             return
         }
 
+        val report = try {
+            JSONObject(json)
+        } catch (error: Exception) {
+            // Nothing the page could send is worth crashing the app it is in.
+            Diagnostics.failed("publish", error)
+            return
+        }
+
+        Diagnostics.published()
         PlaybackService.publish(
             context,
             PlaybackService.Snapshot(
@@ -52,10 +59,69 @@ class PlaybackBridge(
         )
     }
 
-    /** Nothing is playing any more: no device, no track, or the guard tripped. */
+    /**
+     * This phone is not the box any more — another one was chosen, or the DOM
+     * guard tripped.
+     *
+     * Deliberately *not* what a quiet moment sends. The page used to say this
+     * whenever the SDK reported no state, which happens at every track boundary,
+     * and it took the foreground service with it at the one moment the service
+     * existed for. src/player/nativeHost.ts `idleFrom` is the other half of that
+     * correction: a lull publishes a paused snapshot and keeps the service.
+     */
     @JavascriptInterface
     fun stopped() {
         if (!trusted()) return
+        Diagnostics.note("page says this phone is no longer the player")
         PlaybackService.stop()
+    }
+
+    /**
+     * What the plumbing is doing, as JSON, for the panel on /konto.
+     *
+     * The phones this runs on are never plugged into a laptop, so this is the
+     * only way to tell a bridge that was refused from a service that would not
+     * start from a notification Android is simply not showing. See [Diagnostics].
+     *
+     * An untrusted page still gets its own host and the refusal, and nothing
+     * else. That is not a hole: a page always knows its own address, so saying
+     * it back tells it nothing — and this is the one failure that cannot explain
+     * itself from behind the gate that causes it.
+     */
+    @JavascriptInterface
+    fun status(): String {
+        if (!trusted()) {
+            return JSONObject()
+                .put("pageHost", Diagnostics.pageHost)
+                .put("trusted", false)
+                .toString()
+        }
+        return Diagnostics.asJson(context)
+    }
+
+    /**
+     * Opens Android's notification settings for this app.
+     *
+     * The way back from „Nicht zulassen". Android shows the permission dialog
+     * twice and then stops, so from that point asking again from inside the app
+     * is a silent no-op and this screen is the only remedy left — which is
+     * exactly the state a phone is in by the time anybody goes looking for why
+     * the notification never appears.
+     */
+    @JavascriptInterface
+    fun openNotificationSettings() {
+        if (!trusted()) return
+
+        try {
+            context.startActivity(
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    // From the application context, so this needs a task of its own.
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        } catch (error: Exception) {
+            // A phone with no such screen is not one to crash over.
+            Diagnostics.failed("openNotificationSettings", error)
+        }
     }
 }

@@ -503,6 +503,30 @@ Then, once:
 - In Family Link, give „Klangkiste" whatever limit it should have. That is the
   point of the exercise — confirm it is enforced, and confirm the app still
   opens with Chrome blocked.
+- **Allow notifications when the app asks.** The service that keeps the music
+  going with the screen off runs either way, but its notification is the only
+  transport a kid can reach with the phone in a pocket — and Android shows that
+  dialog twice and then stops, after which only the settings screen can change
+  the answer.
+
+### When the music stops with the screen off
+
+**Open „Konto" in the app.** The panel at the bottom of that screen — only there
+inside the wrapper — says whether notifications are allowed, whether the
+foreground service is up, and what last went wrong, with a button straight to
+Android's notification settings.
+
+It exists because these phones are never plugged into a laptop, so `adb logcat`
+is not available when it matters, and every link in the chain from the page to
+the notification fails *silently* on purpose: none of them is worth stopping the
+music over. `Diagnostics.kt` collects what each of them swallowed;
+`PlaybackBridge.status()` hands it to the page; `PlaybackStatus.tsx` shows it.
+The same lines go to logcat under the tag `Klangkiste` for the day there is a
+laptop:
+
+```sh
+adb logcat -s Klangkiste
+```
 
 ### What the wrapper is careful about
 
@@ -563,16 +587,27 @@ Five things worth knowing:
 - **The chosen phone is stored as a sentinel**, not as a device id. The SDK
   mints a new id every session, so storing the live one would have the
   miss-counter forget the choice about thirty seconds into every launch.
-- **In the Android app a media notification appears while this phone plays** —
-  cover, title and Zurück / Pause / Weiter, on the lock screen too. It is not
-  decoration. The SDK lives in the page, so with the screen off Android used to
-  freeze the app at the first track boundary: the song finished, the next one
-  never started, and a kid had to unlock and press play for every single track.
-  The notification is the visible half of the foreground service that prevents
-  that (`android/…/PlaybackService.kt`), and the page's half is
+- **In the Android app a media notification appears as soon as this phone is the
+  chosen box** — cover, title and Zurück / Pause / Weiter, on the lock screen
+  too. It is not decoration. The SDK lives in the page, so with the screen off
+  Android used to freeze the app at the first track boundary: the song finished,
+  the next one never started, and a kid had to unlock and press play for every
+  single track. The notification is the visible half of the foreground service
+  that prevents that (`android/…/PlaybackService.kt`), and the page's half is
   `src/player/nativeHost.ts`, fed by the SDK's own `player_state_changed` —
   `/me/player` is deliberately not polled while the app is hidden. In a browser
   none of it exists and nothing changes.
+
+  It appears **before** anything plays, paused, and stays up until another box
+  is picked. That is the whole trick rather than an oversight: Android only lets
+  an app start a foreground service while it is visible, so the service is
+  claimed at the app's one reliable foreground moment and then never let go of.
+  The first version tied it to the music instead and tore it down whenever the
+  SDK reported no state — which is what it reports at every track boundary, with
+  the app hidden, where it could never be started again. The music stopped
+  seconds after the phone went into a pocket. `idleFrom` in `nativeHost.ts` is
+  the correction: a lull publishes a paused snapshot, and only a deliberate end
+  — another box chosen, or the DOM guard tripping — says `stopped()`.
 
 ## The Hilfe tab
 

@@ -70,6 +70,37 @@ export const t = {
       'Dieses Konto verschwindet dann aus der Liste. Zum Zurückholen ist wieder das Spotify-Passwort nötig.',
     removeConfirm: 'Ja, entfernen',
     cancel: 'Nein, zurück',
+
+    /**
+     * The Android app's playback plumbing, said plainly enough for the adult who
+     * is holding the phone and wondering why the music stopped.
+     *
+     * Only ever visible inside the wrapper, and only on this screen — kids never
+     * come here, and in a browser there is nothing to report. Deliberately
+     * verdicts rather than numbers: „läuft" and „läuft nicht" are what somebody
+     * can act on, and the one action there is sits underneath them.
+     */
+    playback: {
+      title: 'Wiedergabe auf diesem Handy',
+      intro:
+        'Damit die Musik weiterspielt, wenn der Bildschirm aus ist, braucht die App zwei Dinge: eine Benachrichtigung und einen laufenden Dienst.',
+      notificationsOn: 'Benachrichtigung: erlaubt',
+      notificationsOff: 'Benachrichtigung: ausgeschaltet',
+      notificationsHint:
+        'Ohne sie bleibt die Anzeige unsichtbar — und ohne Bedienknöpfe auf dem Sperrbildschirm.',
+      allow: 'Benachrichtigungen erlauben',
+      serviceRunning: 'Dienst: läuft',
+      serviceStopped: 'Dienst: läuft nicht',
+      serviceHint:
+        'Der Dienst startet, sobald „Dieses Handy“ als Box ausgewählt ist. Läuft er nicht, wähle das Handy noch einmal aus.',
+      bridgeBroken: 'Die App erreicht die Seite nicht.',
+      bridgeHint: (host: string) =>
+        `Geladen ist „${host}“. Erwartet wird die Seite der Klangkiste — mit einer anderen Adresse bleibt alles hier stumm.`,
+      lastError: (why: string) => `Zuletzt schiefgegangen: ${why}`,
+      noReports: 'Von der Seite kam noch keine Meldung.',
+      reports: (count: number) =>
+        count === 1 ? '1 Meldung von der Seite' : `${count} Meldungen von der Seite`,
+    },
   },
 
   search: {

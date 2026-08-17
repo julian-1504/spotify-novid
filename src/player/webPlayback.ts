@@ -344,7 +344,13 @@ export function teardown(): void {
   deviceId = null;
   bootPromise = null;
   // Said out loud rather than left to be inferred: a disconnected SDK sends no
-  // further state, so anything mirroring this phone's playback — the Android
-  // notification above all — would otherwise sit on the last song for ever.
+  // further state, so anything mirroring this phone's playback would otherwise
+  // sit on the last song for ever.
+  //
+  // Not enough on its own for the Android notification, and deliberately so. A
+  // null here is indistinguishable from the null the SDK sends at every track
+  // boundary, and treating those as the end tore down the foreground service at
+  // the one moment it was needed. Whoever calls this says the end out loud
+  // instead — see `hostStopped` in PlayerProvider's guard handler.
   emit(null);
 }

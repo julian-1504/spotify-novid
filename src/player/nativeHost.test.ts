@@ -2,8 +2,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   bindHostCommands,
+  hostStatus,
   hostStopped,
+  idleFrom,
   inWrapper,
+  openHostNotificationSettings,
   publishToHost,
   snapshotOfSelf,
 } from './nativeHost';
@@ -18,7 +21,12 @@ import type { SelfState } from './webPlayback';
  */
 
 const bridge = () => {
-  const host = { publish: vi.fn(), stopped: vi.fn() };
+  const host = {
+    publish: vi.fn(),
+    stopped: vi.fn(),
+    status: vi.fn(() => '{}'),
+    openNotificationSettings: vi.fn(),
+  };
   window.Klangkiste = host;
   return host;
 };
@@ -67,6 +75,39 @@ describe('snapshotOfSelf', () => {
   });
 });
 
+/**
+ * The distinction this file exists to protect: „nichts läuft gerade" is not
+ * „dieses Handy ist keine Box mehr". The first must keep the foreground service
+ * up, because a null arrives at every track boundary — with the app hidden,
+ * where Android will not let the service start again.
+ */
+describe('idleFrom', () => {
+  it('keeps the last song on the notification and calls it paused', () => {
+    const last = snapshotOfSelf(playing());
+
+    expect(idleFrom(last)).toEqual({
+      playing: false,
+      title: 'Bibi Blocksberg',
+      artist: 'Elfie Donnelly',
+      artworkUrl: 'https://i.scdn.co/image/abc',
+      durationMs: 240000,
+      positionMs: 1000,
+    });
+  });
+
+  // Selecting this phone publishes before any song has played. A blank title is
+  // what the wrapper turns into its own „Klangkiste" fallback.
+  it('has a blank paused snapshot when there was never a song', () => {
+    expect(idleFrom(null)).toEqual({
+      playing: false,
+      title: '',
+      artist: '',
+      durationMs: 0,
+      positionMs: 0,
+    });
+  });
+});
+
 describe('publishToHost', () => {
   it('hands the snapshot to the wrapper as JSON', () => {
     const host = bridge();
@@ -94,6 +135,57 @@ describe('publishToHost', () => {
     expect(inWrapper()).toBe(false);
     expect(() => publishToHost(snapshotOfSelf(playing()))).not.toThrow();
     expect(() => hostStopped()).not.toThrow();
+  });
+});
+
+/**
+ * The panel on /konto is the only diagnosis available on a phone that is not
+ * plugged into a laptop, so it has to survive the two things that will happen
+ * to it: an APK older than the method, and an APK that answers with rubbish.
+ */
+describe('hostStatus', () => {
+  it('reads what the wrapper says about itself', () => {
+    const host = bridge();
+    host.status.mockReturnValue(
+      JSON.stringify({ trusted: true, serviceRunning: true, notificationsEnabled: false }),
+    );
+
+    expect(hostStatus()).toEqual({
+      trusted: true,
+      serviceRunning: true,
+      notificationsEnabled: false,
+    });
+  });
+
+  it('has no answer outside the wrapper', () => {
+    expect(hostStatus()).toBeNull();
+  });
+
+  it('has no answer from a wrapper too old to have the method', () => {
+    window.Klangkiste = { publish: vi.fn(), stopped: vi.fn() };
+
+    expect(hostStatus()).toBeNull();
+  });
+
+  it('treats an unreadable answer as no answer', () => {
+    const host = bridge();
+    host.status.mockReturnValue('not json');
+
+    expect(hostStatus()).toBeNull();
+  });
+});
+
+describe('openHostNotificationSettings', () => {
+  it('asks the wrapper to open them', () => {
+    const host = bridge();
+
+    openHostNotificationSettings();
+
+    expect(host.openNotificationSettings).toHaveBeenCalled();
+  });
+
+  it('does nothing outside the wrapper', () => {
+    expect(() => openHostNotificationSettings()).not.toThrow();
   });
 });
 

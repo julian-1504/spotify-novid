@@ -9,7 +9,12 @@
 
     <!-- The media notification: what is playing, and the buttons on it. -->
     <string name="channel_playback">Wiedergabe</string>
-    <string name="channel_playback_description">Zeigt, was gerade läuft, und hält die Musik an, wenn der Bildschirm aus ist.</string>
+    <!--
+        „hält die Musik an" said the opposite of what this channel does: it is
+        what keeps the music going. Worth getting right — switching the channel
+        off is one tap away on this screen, and it takes the playback with it.
+    -->
+    <string name="channel_playback_description">Zeigt, was gerade läuft, und sorgt dafür, dass die Musik weiterspielt, wenn der Bildschirm aus ist.</string>
     <string name="playback_unknown_title">Klangkiste</string>
     <string name="playback_play">Abspielen</string>
     <string name="playback_pause">Pause</string>

@@ -26,8 +26,10 @@ import { bindHandlers, publishMetadata, type MediaSessionHandlers } from './medi
 import {
   bindHostCommands,
   hostStopped,
+  idleFrom,
   publishToHost,
   snapshotOfSelf,
+  type HostSnapshot,
 } from './nativeHost';
 import { describeFailure, type SelfFailure } from './selfFailure';
 import { t } from '../strings';
@@ -108,6 +110,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // surface we no longer vouch for is the one thing not to do.
       webPlayback.teardown();
       setSelfId(null);
+      // Said here rather than left to `teardown`'s null state, which no longer
+      // takes the notification down by itself — see the publishing effect
+      // below. This is a deliberate end, so it is one of the two places that
+      // says so out loud.
+      hostStopped();
     });
   }, []);
 
@@ -327,6 +334,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => bindHandlers(transport), [transport]);
   useEffect(() => bindHostCommands(transport), [transport]);
 
+  /** The last thing the notification was told, so a null state can keep it. */
+  const lastPublished = useRef<HostSnapshot | null>(null);
+
   /**
    * The Android wrapper's media notification, and with it the foreground service
    * that stops Android freezing this app while the screen is off. Fed from the
@@ -337,13 +347,36 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
    * Only while this phone is the player. A box that is playing needs none of
    * this: it keeps going whatever Android does to this app, and a notification
    * claiming otherwise would be a lie on the lock screen.
+   *
+   * Two things here are load-bearing rather than tidy, and both are about *when*
+   * Android permits a foreground service to start — which is only while the app
+   * is visible:
+   *
+   * The publish happens the moment this phone becomes the player, before a note
+   * has been played. That is the app's one reliable foreground moment, so it is
+   * where the service has to be claimed; waiting for the first song meant
+   * reaching for it from a pocket, where the answer is no.
+   *
+   * And a null state no longer ends anything. The SDK sends one at every track
+   * boundary and whenever this device is briefly not the active one, so treating
+   * it as the end tore the service down exactly when it was needed and left no
+   * way back. Only the two deliberate ends say `hostStopped`: another box being
+   * chosen, here, and the DOM guard tripping, above.
    */
   useEffect(() => {
     if (!selfSelected) {
+      lastPublished.current = null;
       hostStopped();
       return;
     }
-    return webPlayback.onStateChange((self) => publishToHost(snapshotOfSelf(self)));
+
+    publishToHost(idleFrom(lastPublished.current));
+
+    return webPlayback.onStateChange((self) => {
+      const snapshot = snapshotOfSelf(self);
+      if (snapshot) lastPublished.current = snapshot;
+      publishToHost(snapshot ?? idleFrom(lastPublished.current));
+    });
   }, [selfSelected]);
 
   const value = useMemo<PlayerValue>(

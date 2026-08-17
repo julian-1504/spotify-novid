@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { Artwork } from '../components/Artwork';
 import { Icon } from '../components/Icon';
+import { PlaybackStatus } from '../components/PlaybackStatus';
 import { t } from '../strings';
 import type { Account as AccountRow } from '../auth/accounts';
 
@@ -128,6 +129,13 @@ export function Account() {
         </button>
       </div>
       <p className="muted small">{t.account.addHint}</p>
+
+      {/*
+        Last, and only ever inside the Android app: this is where an adult ends
+        up when the music keeps stopping with the screen off, and it is the only
+        place on these phones that can say why.
+      */}
+      <PlaybackStatus />
     </div>
   );
 }

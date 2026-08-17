@@ -47,6 +47,14 @@ import java.util.concurrent.Executors
  * State arrives from the page through [PlaybackBridge]. Buttons travel the other
  * way through [Transport], which [MainActivity] implements by calling into the
  * page. This service never talks to Spotify itself.
+ *
+ * Its lifetime is the kid's *choice*, not the music: it goes up the moment
+ * „Dieses Handy" is the selected box and stays up, paused notification and all,
+ * until another box is chosen. That is not neatness. Android only lets an app
+ * start a foreground service while it is visible, and the moments this service
+ * is most needed — a track ending with the phone locked — are precisely the
+ * moments it could not be started. So it is claimed at the one reliable
+ * opportunity and then never let go of.
  */
 class PlaybackService : Service() {
 
@@ -136,7 +144,18 @@ class PlaybackService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_COMMAND -> dispatch(intent.getStringExtra(EXTRA_COMMAND))
+            ACTION_COMMAND -> {
+                dispatch(intent.getStringExtra(EXTRA_COMMAND))
+                // Nothing here knows what the page will make of the button yet,
+                // so re-rendering would only re-post the state being left —
+                // the old play/pause icon, and a wake lock taken or dropped on
+                // a snapshot that is about to be replaced. The page's report
+                // arrives in a moment and renders the truth.
+                //
+                // Only safe once the notification is up: before that, render()
+                // is what meets startForegroundService's deadline.
+                if (foregrounded) return START_NOT_STICKY
+            }
             ACTION_STOP -> {
                 // Swiped away. Silence first, then take the notification with it:
                 // a notification that is gone while music plays leaves a kid with
@@ -170,9 +189,23 @@ class PlaybackService : Service() {
         }
     }
 
+    /**
+     * Whether the notification is actually up. Running and foregrounded are two
+     * different things, and the gap between them is one of the failures worth
+     * being able to name from /konto.
+     */
+    fun isForegrounded(): Boolean = foregrounded
+
     /** Playback is over. Drops the notification and the service with it. */
     fun finish() {
         finishing = true
+        // Straight away, and on this thread rather than the main one: everything
+        // that arrives between here and onDestroy is dropped by the `finishing`
+        // guard, and while `instance` still pointed at this corpse a later
+        // report could neither update it nor start a replacement. That window is
+        // short in wall-clock terms and long enough to have swallowed the resume
+        // after a pause.
+        instance = null
         main.post {
             releaseWakeLock()
             session.isActive = false
@@ -213,10 +246,16 @@ class PlaybackService : Service() {
                     startForeground(NOTIFICATION_ID, notification)
                 }
                 foregrounded = true
-            } catch (_: Exception) {
+                Diagnostics.note("foreground service up")
+            } catch (error: Exception) {
                 // Android 12+ refuses a foreground start from the background. The
                 // music is already playing at this point; losing the notification
                 // is worth less than crashing the app out from under it.
+                //
+                // Recorded rather than only survived: this is the failure that
+                // costs the music once the screen goes off, and from the outside
+                // it looks exactly like a notification that never showed up.
+                Diagnostics.failed("startForeground", error)
                 stopSelf()
                 return
             }
@@ -370,7 +409,10 @@ class PlaybackService : Service() {
         releaseWakeLock()
         artworkLoader.shutdown()
         session.release()
-        instance = null
+        // Only if it is still ours. `finish` clears it early so a replacement
+        // can be started at once, and that replacement may already be the one
+        // this field points at by the time this runs.
+        if (instance === this) instance = null
         super.onDestroy()
     }
 
@@ -436,12 +478,21 @@ class PlaybackService : Service() {
                         .putExtra(EXTRA_DURATION, snapshot.durationMs)
                         .putExtra(EXTRA_POSITION, snapshot.positionMs),
                 )
-            } catch (_: Exception) {
+            } catch (error: Exception) {
                 // Playback that begins while the app is hidden cannot start a
                 // foreground service on Android 12+. The music still plays; it
-                // simply plays the way it did before this service existed.
+                // simply plays the way it did before this service existed —
+                // which is to say not for long, so this is worth recording.
+                Diagnostics.failed("startForegroundService", error)
             }
         }
+
+        /** The live service, for [Diagnostics]. Null when there is none. */
+        fun running(): PlaybackService? = instance
+
+        /** 0 means the adult switched the channel off; -1 that it is not there yet. */
+        fun channelImportance(manager: NotificationManager): Int =
+            manager.getNotificationChannel(CHANNEL_ID)?.importance ?: -1
 
         /** Playback is over, or the app is going away. */
         fun stop() {

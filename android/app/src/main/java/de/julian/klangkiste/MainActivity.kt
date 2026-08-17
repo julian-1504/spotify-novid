@@ -125,7 +125,14 @@ class MainActivity : Activity(), PlaybackService.Transport {
             }
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-                pageTrusted = Uri.parse(url).host == siteHost
+                val host = Uri.parse(url).host.orEmpty()
+                pageTrusted = host == siteHost
+                // Recorded because a page that is not trusted is a bridge that
+                // refuses everything in silence, and from the outside that is
+                // indistinguishable from every other way this can fail.
+                Diagnostics.pageHost = host
+                Diagnostics.trusted = pageTrusted
+                Diagnostics.note("loaded $host, trusted=$pageTrusted")
             }
         }
 
@@ -179,6 +186,16 @@ class MainActivity : Activity(), PlaybackService.Transport {
         settings.allowContentAccess = false
     }
 
+    /**
+     * Asks once per cold start, until it is granted or Android stops listening.
+     *
+     * The result is not acted on — the service runs either way — but it is
+     * recorded, because a refusal is invisible from everywhere else: the
+     * notification simply never appears, and nothing distinguishes that from a
+     * service that never started. The panel on /konto reads it back and offers
+     * [PlaybackBridge.openNotificationSettings], which after the second refusal
+     * is the only way left to change the answer.
+     */
     private fun askForNotifications() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
@@ -186,7 +203,24 @@ class MainActivity : Activity(), PlaybackService.Transport {
         ) {
             return
         }
+        Diagnostics.note("asking for POST_NOTIFICATIONS")
         requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_NOTIFICATIONS) return
+
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            Diagnostics.note("POST_NOTIFICATIONS granted")
+        } else {
+            Diagnostics.failed("POST_NOTIFICATIONS", "refused — the notification stays hidden")
+        }
     }
 
     /*
